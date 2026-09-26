@@ -1,5 +1,6 @@
 export type ActiveTab =
   | 'login'
+  | 'dashboard'
   | 'endpoint'
   | 'connections'
   | 'combos'
@@ -23,13 +24,14 @@ export type ActiveTab =
 
 export const TAB_ROUTES: Record<ActiveTab, string> = {
   login: '/login',
-  endpoint: '/dashboard/endpoint',
+  dashboard: '/dashboard',
+  endpoint: '/dashboard',
   connections: '/dashboard/providers',
   combos: '/dashboard/combos',
-  analytics: '/dashboard/usage',
-  quota: '/dashboard/quota',
+  analytics: '/dashboard?tab=requests',
+  quota: '/dashboard?tab=quota',
   'token-saver': '/dashboard/token-saver',
-  'cli-tools': '/dashboard/cli-tools',
+  'cli-tools': '/dashboard',
   'media-embedding': '/dashboard/media-providers/embedding',
   'media-image': '/dashboard/media-providers/image',
   'media-tts': '/dashboard/media-providers/tts',
@@ -38,22 +40,22 @@ export const TAB_ROUTES: Record<ActiveTab, string> = {
   'media-systemone': '/dashboard/media-providers/systemone',
   'media-web': '/dashboard/media-providers/web',
   'proxy-pools': '/dashboard/proxy-pools',
-  skills: '/dashboard/skills',
+  skills: '/dashboard',
   'console-log': '/dashboard/console-log',
   terminal: '/dashboard/console-log',
   settings: '/dashboard/profile',
-  keys: '/dashboard/cli-tools',
+  keys: '/dashboard',
 }
 
 const ROUTE_TO_TAB: Record<string, ActiveTab> = {
   // login
   '/login': 'login',
 
-  // endpoint
-  '/': 'endpoint',
-  '/dashboard': 'endpoint',
-  '/dashboard/endpoint': 'endpoint',
-  '/endpoint': 'endpoint',
+  // dashboard / endpoint / overview
+  '/': 'dashboard',
+  '/dashboard': 'dashboard',
+  '/dashboard/endpoint': 'dashboard',
+  '/endpoint': 'dashboard',
 
   // connections / providers
   '/dashboard/providers': 'connections',
@@ -66,24 +68,24 @@ const ROUTE_TO_TAB: Record<string, ActiveTab> = {
   '/combos': 'combos',
 
   // usage / analytics
-  '/dashboard/usage': 'analytics',
-  '/dashboard/analytics': 'analytics',
-  '/usage': 'analytics',
-  '/analytics': 'analytics',
+  '/dashboard/usage': 'dashboard',
+  '/dashboard/analytics': 'dashboard',
+  '/usage': 'dashboard',
+  '/analytics': 'dashboard',
 
   // quota tracker
-  '/dashboard/quota': 'quota',
-  '/quota': 'quota',
+  '/dashboard/quota': 'dashboard',
+  '/quota': 'dashboard',
 
   // token saver
   '/dashboard/token-saver': 'token-saver',
   '/token-saver': 'token-saver',
 
   // cli-tools
-  '/dashboard/cli-tools': 'cli-tools',
-  '/dashboard/keys': 'cli-tools',
-  '/cli-tools': 'cli-tools',
-  '/keys': 'cli-tools',
+  '/dashboard/cli-tools': 'dashboard',
+  '/dashboard/keys': 'dashboard',
+  '/cli-tools': 'dashboard',
+  '/keys': 'dashboard',
 
   // media providers
   '/dashboard/media-providers/embedding': 'media-embedding',
@@ -119,8 +121,8 @@ const ROUTE_TO_TAB: Record<string, ActiveTab> = {
   '/proxy-pools': 'proxy-pools',
 
   // skills
-  '/dashboard/skills': 'skills',
-  '/skills': 'skills',
+  '/dashboard/skills': 'dashboard',
+  '/skills': 'dashboard',
 
   // console-log / terminal
   '/dashboard/console-log': 'console-log',
@@ -137,14 +139,14 @@ const ROUTE_TO_TAB: Record<string, ActiveTab> = {
 }
 
 export function pathToTab(pathname: string): ActiveTab {
-  if (!pathname) return 'endpoint'
+  if (!pathname) return 'dashboard'
   const clean = pathname.trim().split('?')[0].split('#')[0]
   const normalized = (clean.replace(/\/+$/, '') || '/').toLowerCase()
   if (ROUTE_TO_TAB[normalized]) {
     return ROUTE_TO_TAB[normalized]
   }
   if (normalized.includes('login')) return 'login'
-  if (normalized.includes('endpoint')) return 'endpoint'
+  if (normalized.includes('endpoint')) return 'dashboard'
   if (normalized.includes('embedding')) return 'media-embedding'
   if (normalized.includes('image')) return 'media-image'
   if (normalized.includes('tts')) return 'media-tts'
@@ -153,9 +155,9 @@ export function pathToTab(pathname: string): ActiveTab {
   if (normalized.includes('systemone')) return 'media-systemone'
   if (normalized.includes('media')) return 'media-web'
   if (normalized.includes('token-saver')) return 'token-saver'
-  if (normalized.includes('cli-tools')) return 'cli-tools'
+  if (normalized.includes('cli-tools')) return 'dashboard'
   if (normalized.includes('proxy-pools')) return 'proxy-pools'
-  if (normalized.includes('skills')) return 'skills'
+  if (normalized.includes('skills')) return 'dashboard'
   if (
     normalized.includes('console-log') ||
     normalized.includes('terminal') ||
@@ -163,12 +165,12 @@ export function pathToTab(pathname: string): ActiveTab {
   ) {
     return 'console-log'
   }
-  if (normalized.includes('quota')) return 'quota'
-  if (normalized.includes('usage') || normalized.includes('analytics')) return 'analytics'
+  if (normalized.includes('quota')) return 'dashboard'
+  if (normalized.includes('usage') || normalized.includes('analytics')) return 'dashboard'
   if (normalized.includes('combos')) return 'combos'
   if (normalized.includes('providers') || normalized.includes('connections')) return 'connections'
   if (normalized.includes('profile') || normalized.includes('settings')) return 'settings'
-  return 'endpoint'
+  return 'dashboard'
 }
 
 export function parseProviderId(pathname: string): string | null {

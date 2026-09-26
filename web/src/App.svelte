@@ -10,6 +10,7 @@
     type ProviderNode,
     type Settings
   } from './api/client'
+  import DashboardView from './components/DashboardView.svelte'
   import AnalyticsView from './components/analytics/AnalyticsView.svelte'
   import ApiKeysView from './components/ApiKeysView.svelte'
   import CliToolsView from './components/CliToolsView.svelte'
@@ -36,7 +37,7 @@
   import { getIconPath } from './components/connections/types'
 
   let activeTab = $state<ActiveTab>(
-    typeof window !== 'undefined' ? pathToTab(window.location.pathname) : 'endpoint'
+    typeof window !== 'undefined' ? pathToTab(window.location.pathname) : 'dashboard'
   )
   let connections = $state<ProviderConnection[]>([])
   let providerNodes = $state<ProviderNode[]>([])
@@ -106,18 +107,20 @@
 
   async function loadData() {
     try {
-      const [connsRes, nodesRes, combosRes, keysRes, settingsRes] = await Promise.all([
+      const results = await Promise.all([
         api.getConnections().catch(() => []),
         api.getProviderNodes().catch(() => []),
         api.getCombos().catch(() => []),
         api.getApiKeys().catch(() => []),
         api.getSettings().catch(() => ({})),
       ])
-      connections = connsRes
-      providerNodes = nodesRes
-      combos = combosRes
-      apiKeys = keysRes
-      settings = settingsRes
+      connections = (results[0] || []) as ProviderConnection[]
+      providerNodes = (results[1] || []) as ProviderNode[]
+      combos = (results[2] || []) as Combo[]
+      apiKeys = (results[3] || []) as APIKey[]
+      settings = (results[4] || {}) as Settings
+    } catch (e) {
+      console.error('loadData error:', e)
     } finally {
       isLoading = false
     }
@@ -127,9 +130,15 @@
     try {
       const authStatus = await api.checkRequireLogin()
       requireLogin = !!authStatus.requireLogin
-      // Trust the server session (auth_token cookie) first; the localStorage
-      // flag is only a hint because the cookie is httpOnly and unreadable by JS.
-      isAuthenticatedState = !!authStatus.authenticated || isAuthenticated() || !requireLogin
+      if (requireLogin) {
+        isAuthenticatedState = !!authStatus.authenticated
+        if (!isAuthenticatedState && typeof window !== 'undefined') {
+          sessionStorage.removeItem('9router_auth')
+          localStorage.removeItem('9router_auth')
+        }
+      } else {
+        isAuthenticatedState = true
+      }
     } catch {
       requireLogin = false
       isAuthenticatedState = true
@@ -139,12 +148,22 @@
   }
 
   onMount(() => {
+    const safetyTimer = setTimeout(() => {
+      isLoading = false
+    }, 3000)
+
     checkAuth().then(() => {
       if (isAuthenticatedState && activeTab === 'login') {
-        navigate('endpoint', true)
+        navigate('dashboard', true)
+      }
+      if (!isAuthenticatedState && requireLogin) {
+        isLoading = false
       }
     })
-    loadData()
+    loadData().finally(() => {
+      clearTimeout(safetyTimer)
+      isLoading = false
+    })
 
     const rawPath = window.location.pathname.replace(/\/+$/, '') || '/'
     if (rawPath === '/' || rawPath === '/dashboard') {
@@ -202,7 +221,8 @@
   })
   const pageMeta: Record<ActiveTab, { title: string; description: string }> = {
     login: { title: 'Login', description: 'Authenticate to access 9router-go' },
-    endpoint: { title: 'Endpoint & Key', description: 'API endpoint and key configuration' },
+    dashboard: { title: 'Endpoint', description: 'API endpoint configuration' },
+    endpoint: { title: 'Endpoint', description: 'API endpoint configuration' },
     connections: { title: 'Providers & Endpoints', description: 'Manage your AI provider connections' },
     combos: { title: 'Combo & Routing', description: 'Model combos and failover strategies' },
     analytics: { title: 'Usage & Analytics', description: 'Monitor your API usage, token consumption, and request logs' },
@@ -306,8 +326,8 @@
               <span class="font-code text-xs">Connecting to 9router-go Localhost Gateway (:20130)...</span>
             </div>
           {:else}
-            {#if activeTab === 'endpoint'}
-              <EndpointView {apiKeys} {settings} onRefresh={loadData} />
+            {#if activeTab === 'dashboard' || activeTab === 'endpoint'}
+              <DashboardView {connections} {providerNodes} {apiKeys} {settings} onRefresh={loadData} />
             {:else if activeTab === 'connections'}
               <ConnectionsView
                 {connections}

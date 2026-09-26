@@ -14,6 +14,9 @@ import (
 // with gemini-3.8-flash-medium (no mocks). Skips gracefully when there is no
 // real DB, no active connection, or the token is expired/rate-limited.
 func TestLiveE2E_Antigravity_Gemini38FlashMedium_RealChat(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live upstream test in short mode")
+	}
 	repo, cleanup := getRealUserDB(t)
 	defer cleanup()
 
@@ -57,6 +60,9 @@ func TestLiveE2E_Antigravity_Gemini38FlashMedium_RealChat(t *testing.T) {
 // TestLiveE2E_Antigravity_Gemini38FlashMedium_RealStream is the streaming
 // counterpart over the real upstream.
 func TestLiveE2E_Antigravity_Gemini38FlashMedium_RealStream(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live upstream test in short mode")
+	}
 	repo, cleanup := getRealUserDB(t)
 	defer cleanup()
 

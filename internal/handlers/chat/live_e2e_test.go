@@ -15,10 +15,14 @@ import (
 
 	"9router/proxy/internal/db"
 	"9router/proxy/internal/proxy/executor"
+
 	_ "modernc.org/sqlite"
 )
 
 func getRealUserDB(t *testing.T) (*db.Repo, func()) {
+	if testing.Short() {
+		t.Skip("skipping live tests with real user DB in short mode")
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Skip("cannot get user home dir")
@@ -303,7 +307,6 @@ func TestLiveE2E_Cline_SmartCombo(t *testing.T) {
 		t.Errorf("expected SSE chunks and [DONE], got: %s", rec.Body.String())
 	}
 }
-
 
 func TestLiveE2E_Antigravity_MultiToolCall(t *testing.T) {
 	repo, cleanup := getRealUserDB(t)

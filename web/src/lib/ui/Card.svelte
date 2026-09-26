@@ -15,7 +15,7 @@
   }: {
     title?: string
     subtitle?: string
-    icon?: Snippet
+    icon?: string | Snippet
     action?: Snippet
     padding?: 'none' | 'xs' | 'sm' | 'md' | 'lg'
     hover?: boolean
@@ -45,7 +45,11 @@
       <div class="flex items-center gap-3">
         {#if icon}
           <div class="p-2 rounded-[10px] bg-bg text-text-muted">
-            {@render icon()}
+            {#if typeof icon === 'function'}
+              {@render icon()}
+            {:else}
+              <span class="material-symbols-outlined text-[20px]">{icon}</span>
+            {/if}
           </div>
         {/if}
         <div>
@@ -58,7 +62,13 @@
         </div>
       </div>
       {#if action}
-        <div>{@render action()}</div>
+        <div>
+          {#if typeof action === 'function'}
+            {@render action()}
+          {:else}
+            {action}
+          {/if}
+        </div>
       {/if}
     </div>
   {/if}

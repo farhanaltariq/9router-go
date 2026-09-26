@@ -13,11 +13,12 @@ import (
 	"9router/proxy/internal/middleware"
 	"9router/proxy/web"
 	json "encoding/json/v2"
-	"github.com/go-chi/chi/v5"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // Re-export TokenSaverConfig for root compatibility
@@ -127,6 +128,8 @@ func SetupRoutes(r interface {
 	r.Get("/api/usage/stream", HandleUsageStream(repo))
 	r.Get("/usage/stats", HandleUsageStats(repo))
 	r.Get("/api/usage/stats", HandleUsageStats(repo))
+	r.Get("/usage/chart", HandleUsageChart(repo))
+	r.Get("/api/usage/chart", HandleUsageChart(repo))
 	r.Get("/api/usage/request-details", HandleRequestDetails(repo))
 	r.Get("/api/usage/providers", dashH.HandleGetUsageProviders)
 	r.Get("/api/usage/{connectionId}", dashH.HandleGetConnectionUsage)
@@ -160,6 +163,8 @@ func SetupDashboardRoutes(r chi.Router, repo *db.Repo) {
 	r.Get("/usage/stream", HandleUsageStream(repo))
 	r.Get("/api/usage/stats", HandleUsageStats(repo))
 	r.Get("/usage/stats", HandleUsageStats(repo))
+	r.Get("/api/usage/chart", HandleUsageChart(repo))
+	r.Get("/usage/chart", HandleUsageChart(repo))
 	r.Get("/api/usage/request-details", HandleRequestDetails(repo))
 	r.Get("/api/usage/providers", dashH.HandleGetUsageProviders)
 	r.Get("/api/usage/{connectionId}", dashH.HandleGetConnectionUsage)

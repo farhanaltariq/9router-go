@@ -736,6 +736,7 @@ export const api = {
 
   // Usage & Telemetry
   getUsageStats: (period = 'today') => request<any>(`/api/usage/stats?period=${encodeURIComponent(period)}`),
+  getUsageChart: (period = '7d') => request<{ label: string; tokens: number; cost: number }[]>(`/api/usage/chart?period=${encodeURIComponent(period)}`),
   getRequestDetails: (limit = 50, offset = 0) =>
     request<any>(`/api/usage/request-details?limit=${limit}&offset=${offset}`),
   resetHealth: (provider: string, model?: string) =>

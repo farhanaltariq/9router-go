@@ -88,7 +88,30 @@ type UsageHistoryRow struct {
 	Tokens           string
 }
 
-// GetUsageDailyRecent returns the most recent daily usage records up to limit.
+// UsageDailyRow represents a date-keyed daily usage record.
+type UsageDailyRow struct {
+	DateKey string
+	Data    string
+}
+
+// GetUsageDailyAfter returns all usageDaily rows where dateKey >= cutoffKey.
+func (r *Repo) GetUsageDailyAfter(cutoffKey string) ([]UsageDailyRow, error) {
+	rows, err := r.db.Query(`SELECT dateKey, data FROM usageDaily WHERE dateKey >= ? ORDER BY dateKey ASC`, cutoffKey)
+	if err != nil {
+		return nil, fmt.Errorf("query usageDaily after %s: %w", cutoffKey, err)
+	}
+	defer rows.Close()
+
+	var res []UsageDailyRow
+	for rows.Next() {
+		var row UsageDailyRow
+		if err := rows.Scan(&row.DateKey, &row.Data); err != nil {
+			continue
+		}
+		res = append(res, row)
+	}
+	return res, nil
+}
 func (r *Repo) GetUsageDailyRecent(limit int) ([]string, error) {
 	rows, err := r.db.Query(`SELECT data FROM usageDaily ORDER BY dateKey DESC LIMIT ?`, limit)
 	if err != nil {
