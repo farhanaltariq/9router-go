@@ -66,12 +66,11 @@ func TestSetupRoutes_OAuthEndpointsMounted(t *testing.T) {
 		method string
 		path   string
 	}{
-		{"POST", "/api/oauth/freebuff/initiate"},
-		{"POST", "/api/oauth/freebuff/poll"},
-		{"GET", "/api/oauth/freebuff/session"},
-		{"POST", "/api/oauth/freebuff/session/switch"},
 		{"GET", "/api/oauth/antigravity/authorize"},
 		{"POST", "/api/oauth/antigravity/exchange"},
+		{"POST", "/api/oauth/device/start"},
+		{"POST", "/api/oauth/device/poll"},
+		{"POST", "/api/oauth/codex/bulk-import"},
 	}
 
 	for _, ep := range endpoints {

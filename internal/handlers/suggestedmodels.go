@@ -20,13 +20,6 @@ type suggestedModel struct {
 	ContextLength *int64 `json:"contextLength,omitempty"`
 }
 
-// Port of the FILTERS map in
-// src/app/api/providers/suggested-models/filters.js (upstream 9router).
-var (
-	knownFreeOpencodeModels = []string{"big-pickle"}
-	deadFreeOpencodeModels  = map[string]bool{"deepseek-v4-flash-free": true}
-)
-
 func getString(m map[string]any, key string) string {
 	if s, ok := m[key].(string); ok {
 		return s
@@ -82,49 +75,6 @@ func filterOpenRouterFree(models []map[string]any) []suggestedModel {
 	return out
 }
 
-func filterOpencodeFree(models []map[string]any) []suggestedModel {
-	out := []suggestedModel{}
-	for _, m := range models {
-		id := getString(m, "id")
-		if id == "" || deadFreeOpencodeModels[id] {
-			continue
-		}
-		free := strings.HasSuffix(id, "-free")
-		if !free {
-			for _, k := range knownFreeOpencodeModels {
-				if id == k {
-					free = true
-					break
-				}
-			}
-		}
-		if !free {
-			continue
-		}
-		out = append(out, suggestedModel{ID: id, Name: id})
-	}
-	return out
-}
-
-func filterMimoFree(models []map[string]any) []suggestedModel {
-	out := []suggestedModel{}
-	for _, m := range models {
-		id := getString(m, "id")
-		name := getString(m, "name")
-		if id == "" {
-			continue
-		}
-		if !strings.HasPrefix(id, "mimo") && !strings.Contains(strings.ToLower(name), "mimo") {
-			continue
-		}
-		if name == "" {
-			name = id
-		}
-		out = append(out, suggestedModel{ID: id, Name: name})
-	}
-	return out
-}
-
 func filterAirforceFree(models []map[string]any) []suggestedModel {
 	out := []suggestedModel{}
 	for _, m := range models {
@@ -169,10 +119,6 @@ func HandleSuggestedModels(w http.ResponseWriter, r *http.Request) {
 	switch filterType {
 	case "openrouter-free":
 		filter = filterOpenRouterFree
-	case "opencode-free":
-		filter = filterOpencodeFree
-	case "mimo-free":
-		filter = filterMimoFree
 	case "airforce-free":
 		filter = filterAirforceFree
 	default:

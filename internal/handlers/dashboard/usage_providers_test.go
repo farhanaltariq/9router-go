@@ -53,30 +53,6 @@ func TestMaskConnectionName(t *testing.T) {
 	}
 }
 
-func TestParseGroqDurationMs(t *testing.T) {
-	ms, ok := parseGroqDurationMs("2m59.56s")
-	if !ok || ms < 179000 || ms > 180000 {
-		t.Errorf("2m59.56s: got %d,%v", ms, ok)
-	}
-	if _, ok := parseGroqDurationMs(""); ok {
-		t.Errorf("empty must not parse")
-	}
-	if _, ok := parseGroqDurationMs("tomorrow"); ok {
-		t.Errorf("garbage must not parse")
-	}
-}
-
-func TestGrokMakeQuota(t *testing.T) {
-	q := grokMakeQuota(30, 100, "")
-	if q["used"] != 30.0 || q["total"] != 100.0 || q["remainingPercentage"] != 70.0 {
-		t.Errorf("unexpected quota: %v", q)
-	}
-	q = grokMakeQuota(5, 0, "")
-	if q["total"] != 0 || q["unlimited"] != true {
-		t.Errorf("zero total must be unlimited row: %v", q)
-	}
-}
-
 func TestUsageQuotaShape(t *testing.T) {
 	q := usageQuota(25, 100, "2026-01-01T00:00:00Z")
 	if q["remainingPercentage"] != 75.0 || q["resetAt"] != "2026-01-01T00:00:00Z" || q["unlimited"] != false {
@@ -117,11 +93,11 @@ func TestIsUsageEligibleConnection(t *testing.T) {
 		want               bool
 	}{
 		{"codex", "oauth", true},
-		{"kimi", "apikey", true},
-		{"kimi", "oauth", true},
+		{"commandcode", "apikey", true},
+		{"commandcode", "oauth", true},
 		{"openai", "apikey", false},
-		{"deepseek", "apikey", true},
-		{"comfyui", "apikey", false},
+		{"nvidia", "freeTier", false},
+		{"custom-unknown", "apikey", false},
 	}
 	for _, c := range cases {
 		conn := testUsageConn(c.provider, c.authType)

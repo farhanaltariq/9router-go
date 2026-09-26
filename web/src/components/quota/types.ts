@@ -815,7 +815,7 @@ export function parseQuotaData(provider: string, data: unknown): NormalizedQuota
   // Sort quotas according to PROVIDER_MODELS order
   const modelOrder = getModelsByProviderId(provider)
   if (modelOrder.length > 0) {
-    const orderMap = new Map(modelOrder.map((m, i) => [m.id, i]))
+    const orderMap = new Map(modelOrder.map((m: any, i: number) => [m.id, i]))
     normalizedQuotas.sort((a, b) => {
       let keyA = a.modelKey || a.name
       let keyB = b.modelKey || b.name
@@ -825,7 +825,7 @@ export function parseQuotaData(provider: string, data: unknown): NormalizedQuota
       if (keyB === 'claude' || keyB === 'claude_gpt_session') keyB = 'claude-sonnet-4-6'
       const orderA = orderMap.get(keyA) ?? 999
       const orderB = orderMap.get(keyB) ?? 999
-      return orderA - orderB
+      return (orderA as number) - (orderB as number)
     })
   }
 

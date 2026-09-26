@@ -9,7 +9,6 @@ import (
 	"io"
 	mathRand "math/rand"
 	"net/http"
-	"strings"
 	"time"
 
 	"9router/proxy/internal/db"
@@ -109,110 +108,6 @@ func (h *OAuthHandler) HandleOAuthImport(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// HandleOAuthKiroSocialAuthorize generates Kiro social auth URL with PKCE.
-// GET /api/oauth/kiro/social-authorize?provider=google|github
-func (h *OAuthHandler) HandleOAuthKiroSocialAuthorize(w http.ResponseWriter, r *http.Request) {
-	p := r.URL.Query().Get("provider")
-	if p != "google" && p != "github" {
-		handlerutil.WriteJSONError(w, http.StatusBadRequest, "invalid provider, use 'google' or 'github'")
-		return
-	}
-
-	// Generate PKCE challenge
-	codeVerifier := randomString(64)
-	codeChallenge := sha256Base64(codeVerifier)
-	state := randomString(32)
-
-	// Build Kiro social auth URL (AWS Cognito hosted UI)
-	clientID := "38k1nvcot3m5po4oi5f1jt0s46" // Kiro's Cognito client ID
-	redirectURI := "kiro://oauth"
-	authURL := fmt.Sprintf(
-		"https://kiro-auth-pool.auth.us-east-1.amazoncognito.com/oauth2/authorize?identity_provider=%s&response_type=code&client_id=%s&redirect_uri=%s&scope=openid+email+profile&state=%s&code_challenge_method=S256&code_challenge=%s",
-		titleProvider(p), clientID, redirectURI, state, codeChallenge,
-	)
-
-	handlerutil.WriteJSON(w, http.StatusOK, map[string]any{
-		"authUrl":       authURL,
-		"state":         state,
-		"codeVerifier":  codeVerifier,
-		"codeChallenge": codeChallenge,
-		"provider":      p,
-	})
-}
-
-// HandleOAuthKiroSocialExchange exchanges auth code for Kiro tokens.
-// POST /api/oauth/kiro/social-exchange
-func (h *OAuthHandler) HandleOAuthKiroSocialExchange(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		handlerutil.WriteJSONError(w, http.StatusBadRequest, "failed to read body")
-		return
-	}
-	defer r.Body.Close()
-
-	var req struct {
-		Code         string `json:"code"`
-		CodeVerifier string `json:"codeVerifier"`
-	}
-	if err := json.Unmarshal(body, &req); err != nil {
-		handlerutil.WriteJSONError(w, http.StatusBadRequest, "invalid JSON body")
-		return
-	}
-	if req.Code == "" {
-		handlerutil.WriteJSONError(w, http.StatusBadRequest, "missing code")
-		return
-	}
-
-	// Exchange code for tokens via Cognito token endpoint
-	tokenURL := "https://kiro-auth-pool.auth.us-east-1.amazoncognito.com/oauth2/token"
-	exchangeBody := fmt.Sprintf(
-		"grant_type=authorization_code&client_id=%s&code=%s&redirect_uri=kiro://oauth&code_verifier=%s",
-		"38k1nvcot3m5po4oi5f1jt0s46", req.Code, req.CodeVerifier,
-	)
-
-	tokenResp, err := http.Post(tokenURL, "application/x-www-form-urlencoded", strings.NewReader(exchangeBody))
-	if err != nil {
-		handlerutil.WriteJSONError(w, http.StatusBadGateway, fmt.Sprintf("token exchange failed: %v", err))
-		return
-	}
-	defer tokenResp.Body.Close()
-
-	var tokenData map[string]any
-	if err := json.UnmarshalRead(tokenResp.Body, &tokenData); err != nil {
-		log.Error("oauth", "decode token response failed", "error", err)
-		handlerutil.WriteJSONError(w, http.StatusBadGateway, "failed to decode token response")
-		return
-	}
-	if accessToken, ok := tokenData["access_token"].(string); ok {
-		// Save as kiro provider connection
-		connID := "kiro-oauth-" + randomString(12)
-		dataMap := map[string]any{
-			"accessToken": accessToken,
-		}
-		if idToken, ok := tokenData["id_token"].(string); ok {
-			dataMap["idToken"] = idToken
-		}
-		if refreshToken, ok := tokenData["refresh_token"].(string); ok {
-			dataMap["refreshToken"] = refreshToken
-		}
-		data, err := json.Marshal(dataMap)
-		if err != nil {
-			log.Error("oauth", "marshal Kiro social data failed", "error", err)
-		} else {
-			now := currentTimestamp()
-			if _, err := h.Repo.RawDB().Exec(
-				`INSERT INTO providerConnections (id, provider, authType, name, isActive, data, createdAt, updatedAt) VALUES (?, ?, 'oauth', ?, 1, ?, ?, ?)`,
-				connID, "kiro", "Kiro Social", string(data), now, now,
-			); err != nil {
-				log.Error("oauth", "save Kiro social connection failed", "error", err)
-			}
-		}
-		tokenData["id"] = connID
-	}
-
-	handlerutil.WriteJSON(w, http.StatusOK, tokenData)
-}
-
 // HandleOAuthCodexBulkImport handles bulk Codex token import.
 // POST /api/oauth/codex/bulk-import
 func (h *OAuthHandler) HandleOAuthCodexBulkImport(w http.ResponseWriter, r *http.Request) {
@@ -260,19 +155,9 @@ func (h *OAuthHandler) HandleOAuthCodexBulkImport(w http.ResponseWriter, r *http
 	}
 
 	handlerutil.WriteJSON(w, http.StatusOK, map[string]any{
-		"imported": imported,
-		"count":    len(imported),
+		"count": len(imported),
+		"ids":   imported,
 	})
-}
-
-func titleProvider(p string) string {
-	if p == "google" {
-		return "Google"
-	}
-	if p == "github" {
-		return "GitHub"
-	}
-	return p
 }
 
 func currentTimestamp() string {

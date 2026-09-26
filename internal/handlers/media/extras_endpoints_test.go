@@ -244,37 +244,6 @@ func TestHandleModelsByKind(t *testing.T) {
 	}
 }
 
-func TestHandleModelsByKind_tts(t *testing.T) {
-	handler := chat.NewChatHandler(nil)
-	req := httptest.NewRequest("GET", "/v1/models/tts", nil)
-	req.SetPathValue("kind", "tts")
-	rec := httptest.NewRecorder()
-
-	handler.HandleModelsByKind(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var resp map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	data, ok := resp["data"].([]any)
-	if !ok {
-		t.Fatalf("expected data array, got %T", resp["data"])
-	}
-	found := false
-	for _, item := range data {
-		if m, ok := item.(map[string]any); ok && m["id"] == "elevenlabs" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("expected elevenlabs in TTS provider list")
-	}
-}
-
 func TestHandleAudioVoices_missingProvider(t *testing.T) {
 	handler := chat.NewChatHandler(nil)
 	req := httptest.NewRequest("GET", "/v1/audio/voices", nil)
@@ -296,32 +265,6 @@ func TestHandleAudioVoices_unknownProvider(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rec.Code)
-	}
-}
-
-func TestHandleAudioVoices_elevenlabs(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"voices":[{"voice_id":"21m00Tcm4TlvDq8ikWAM","name":"Rachel"}]}`))
-	}))
-	defer upstream.Close()
-
-	handler := chat.NewChatHandler(nil)
-	req := httptest.NewRequest("GET", "/v1/audio/voices?provider=elevenlabs", nil)
-	rec := httptest.NewRecorder()
-	handler.Client = upstream.Client()
-	handler.HandleAudioVoices(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var resp map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if resp["voices"] == nil {
-		t.Errorf("expected voices in response, got %v", resp)
 	}
 }
 

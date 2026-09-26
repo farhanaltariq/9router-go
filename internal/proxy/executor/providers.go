@@ -1,48 +1,25 @@
 package executor
 
 import (
-	"9router/proxy/internal/log"
 	"bytes"
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	json "encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"9router/proxy/internal/log"
 	"9router/proxy/internal/proxy"
-	"9router/proxy/internal/translator"
 )
 
 // ---- Provider-specific executors ----
-
-// ForwardGrokCLI forwards to grok-cli using Responses API format.
-// Transforms Chat Completions body → Responses API body before forwarding.
-func ForwardGrokCLI(w http.ResponseWriter, req *Request) error {
-	transformedBody, _, err := buildResponsesBody(req.Body)
-	if err != nil {
-		return fmt.Errorf("transform body: %w", err)
-	}
-	ctx := req.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	resp, err := proxy.ForwardGrokCLI(ctx, req.Client, req.Config, req.APIKey, transformedBody, req.IsStream)
-	if err != nil {
-		return fmt.Errorf("ForwardGrokCLI: %w", err)
-	}
-	defer resp.Body.Close()
-	return handleCodexStream(w, req, resp.Body)
-}
 
 // ForwardCodex forwards to codex using Responses API format.
 // Transforms Chat Completions body → Responses API body before forwarding.
@@ -63,165 +40,6 @@ func ForwardCodex(w http.ResponseWriter, req *Request) error {
 	return handleCodexStream(w, req, resp.Body)
 }
 
-// ForwardIflow forwards to iflow with HMAC-SHA256 signature.
-// Injects stream_options and generates HMAC headers before forwarding.
-func ForwardIflow(w http.ResponseWriter, req *Request) error {
-	var reqMap map[string]any
-	if err := json.Unmarshal(req.Body, &reqMap); err != nil {
-		return fmt.Errorf("parse body: %w", err)
-	}
-	if req.IsStream {
-		reqMap["stream"] = true
-		if _, ok := reqMap["stream_options"]; !ok {
-			reqMap["stream_options"] = map[string]any{"include_usage": true}
-		}
-	}
-	reqBody, err := json.Marshal(reqMap)
-	if err != nil {
-		return fmt.Errorf("marshal iflow body: %w", err)
-	}
-
-	// HMAC-SHA256 signature
-	sessionID := "session-" + uuid.New().String()
-	timestamp := time.Now().UnixMilli()
-	userAgent := "iFlow-Cli"
-	payload := userAgent + ":" + sessionID + ":" + strconv.FormatInt(timestamp, 10)
-
-	mac := hmac.New(sha256.New, []byte(req.APIKey))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
-
-	extraHeaders := map[string]string{
-		"User-Agent":        userAgent,
-		"session-id":        sessionID,
-		"x-iflow-timestamp": strconv.FormatInt(timestamp, 10),
-		"x-iflow-signature": signature,
-	}
-	ctx := req.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	resp, err := proxy.ForwardIflow(ctx, req.Client, req.Config, req.APIKey, reqBody, req.IsStream, extraHeaders)
-	if err != nil {
-		return fmt.Errorf("ForwardIflow upstream: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if req.IsStream {
-		return execSSEStream(w, resp.Body, req)
-	}
-	return jsonResponse(req.Ctx, w, resp.Body, req.TranslateResp, req.ResponseBuf)
-}
-
-// ForwardKimchi forwards to kimchi with Anthropic field stripping.
-// Cleans Anthropic-specific fields from body before forwarding.
-func ForwardKimchi(w http.ResponseWriter, req *Request) error {
-	var reqBody map[string]any
-	if err := json.Unmarshal(req.Body, &reqBody); err != nil {
-		return fmt.Errorf("parse request body: %w", err)
-	}
-
-	CleanKimchiBody(reqBody)
-
-	cleanedBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("marshal cleaned body: %w", err)
-	}
-
-	ctx := req.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	resp, err := proxy.ForwardKimchi(ctx, req.Client, req.Config, req.APIKey, cleanedBody, req.IsStream)
-	if err != nil {
-		return fmt.Errorf("ForwardKimchi: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if req.IsStream {
-		return execSSEStream(w, resp.Body, req)
-	}
-	return jsonResponse(req.Ctx, w, resp.Body, req.TranslateResp, req.ResponseBuf)
-}
-
-// ForwardKiro forwards to kiro with AWS EventStream response handling.
-// Uses EventStream binary parsing instead of standard SSE.
-func ForwardKiro(w http.ResponseWriter, req *Request) error {
-	ctx := req.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	resp, err := proxy.ForwardKiro(ctx, req.Client, req.Config, req.APIKey, req.Body, req.IsStream)
-	if err != nil {
-		return fmt.Errorf("ForwardKiro: %w", err)
-	}
-	defer resp.Body.Close()
-	return handleKiroStream(w, req, resp.Body)
-}
-
-// ForwardAzure forwards to Azure OpenAI with dynamic URL from env vars.
-func ForwardAzure(w http.ResponseWriter, req *Request) error {
-	var oreq struct {
-		Model string `json:"model"`
-	}
-	if err := json.Unmarshal(req.Body, &oreq); err != nil {
-		log.Warn("executor", "azure unmarshal body", "error", err)
-	}
-	modelName := oreq.Model
-	if modelName == "" {
-		modelName = "gpt-4"
-	}
-
-	endpoint := os.Getenv("AZURE_ENDPOINT")
-	apiVersion := os.Getenv("AZURE_API_VERSION")
-	if apiVersion == "" {
-		apiVersion = "2024-10-01-preview"
-	}
-	deployment := os.Getenv("AZURE_DEPLOYMENT")
-	if deployment == "" {
-		deployment = modelName
-	}
-	if endpoint == "" {
-		endpoint = "https://api.openai.com"
-	}
-
-	baseURL := strings.TrimRight(endpoint, "/")
-	url := fmt.Sprintf("%s/openai/deployments/%s/chat/completions?api-version=%s",
-		baseURL, deployment, apiVersion)
-
-	ctx := req.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	r, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(req.Body))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	r.Header.Set("Content-Type", "application/json")
-	r.Header.Set("api-key", req.APIKey)
-	if req.IsStream {
-		r.Header.Set("Accept", "text/event-stream")
-	}
-
-	resp, err := req.Client.Do(r)
-	if err != nil {
-		return fmt.Errorf("upstream request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		errBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
-		if readErr != nil {
-			return &proxy.UpstreamError{StatusCode: resp.StatusCode, Body: []byte("failed to read error body")}
-		}
-		return &proxy.UpstreamError{StatusCode: resp.StatusCode, Body: errBody}
-	}
-
-	if req.IsStream {
-		return execSSEStream(w, resp.Body, req)
-	}
-	return jsonResponse(req.Ctx, w, resp.Body, req.TranslateResp, req.ResponseBuf)
-}
 func parseDataURIMime(uri string) string {
 	if strings.HasPrefix(uri, "data:") {
 		if idx := strings.Index(uri, ";"); idx > 5 {
@@ -283,7 +101,6 @@ func toCommandcodeImageBlock(part map[string]any) map[string]any {
 	}
 	return nil
 }
-
 
 // buildCommandcodeBody transforms OpenAI request payload into CommandCode schema
 // {threadId, memory, config, params} matching upstream openaiToCommandCodeRequest.
@@ -423,7 +240,6 @@ func ForwardCommandcode(w http.ResponseWriter, req *Request) error {
 	if err != nil {
 		return fmt.Errorf("marshal commandcode body: %w", err)
 	}
-	// Build request with custom headers (not using proxy.ForwardCommandcode)
 	ctx := req.Ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -459,211 +275,6 @@ func ForwardCommandcode(w http.ResponseWriter, req *Request) error {
 	}
 
 	return handleCommandcodeStream(w, req, resp.Body, oreq.Model)
-}
-
-// ForwardOpencode handles requests for opencode (free tier).
-func ForwardOpencode(w http.ResponseWriter, req *Request) error {
-	apiKey := req.APIKey
-	if apiKey == "" {
-		apiKey = "public"
-	}
-
-	var reqObj struct {
-		Model string `json:"model"`
-	}
-	_ = json.Unmarshal(req.Body, &reqObj)
-	cleanModel := strings.TrimPrefix(reqObj.Model, "oc/")
-	cleanModel = strings.TrimPrefix(cleanModel, "opencode/")
-	cleanModel = strings.TrimPrefix(cleanModel, "antigravity/")
-	cleanModel = strings.TrimPrefix(cleanModel, "ag/")
-	if parenIdx := strings.IndexByte(cleanModel, '('); parenIdx != -1 {
-		cleanModel = cleanModel[:parenIdx]
-	}
-
-	if isOpencodeResponsesModel(cleanModel) {
-		// Route through Responses API format: https://opencode.ai/zen/v1/responses
-		transformedBody, _, err := buildResponsesBody(req.Body)
-		if err != nil {
-			return fmt.Errorf("transform body for muse-spark: %w", err)
-		}
-
-		transformedBody, err = normalizeMuseSparkResponsesBody(transformedBody, cleanModel)
-		if err != nil {
-			return fmt.Errorf("normalize muse-spark body: %w", err)
-		}
-
-		// The free-tier gate fingerprints the lowercase tool quartet; capitalised
-		// variants from Claude Code CLI are renamed here and restored on the
-		// response (translator.ConcealFingerprintTools).
-		transformedBody, toolNameMap := translator.ConcealFingerprintTools(transformedBody)
-		req.Ctx = translator.WithToolNameMap(req.Ctx, toolNameMap)
-		w = NewToolNameRestoringWriter(w, toolNameMap)
-
-		cfg := *req.Config
-		isRelay := cfg.StaticHeaders != nil && cfg.StaticHeaders["x-relay-target"] != ""
-		if isRelay {
-			// Relay mode: BaseURL is the relay host (e.g. vercel-relay.vercel.app).
-			// Target endpoint must be set in x-relay-path, NOT by appending /responses to BaseURL.
-			cfg.StaticHeaders = make(map[string]string, len(req.Config.StaticHeaders))
-			for k, v := range req.Config.StaticHeaders {
-				cfg.StaticHeaders[k] = v
-			}
-			cfg.StaticHeaders["x-relay-path"] = "/zen/v1/responses"
-		} else if !strings.HasSuffix(cfg.BaseURL, "/responses") {
-			baseURL := strings.TrimRight(cfg.BaseURL, "/")
-			if strings.HasSuffix(baseURL, "/chat/completions") {
-				baseURL = strings.TrimSuffix(baseURL, "/chat/completions")
-			}
-			cfg.BaseURL = baseURL + "/responses"
-		}
-		cfg.StaticHeaders = proxy.BuildOpenCodeHeaders(cfg.StaticHeaders, req.SessionID, req.IsStream)
-		ctx := req.Ctx
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		resp, err := proxy.ForwardOpenAI(ctx, req.Client, &cfg, apiKey, transformedBody, req.IsStream)
-		if err != nil {
-			return fmt.Errorf("ForwardOpencode (muse-spark responses): %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
-			return &proxy.UpstreamError{StatusCode: resp.StatusCode, Body: errBody}
-		}
-
-		if req.IsStream {
-			stallReader := proxy.NewStallReaderWithContext(ctx, resp.Body, 0, "opencode-responses")
-			defer stallReader.Close()
-			return handleCodexStream(w, req, stallReader)
-		}
-		return handleCodexStream(w, req, resp.Body)
-	}
-	if cleanModel == "union-alpha" {
-		// Route through Messages API format: https://opencode.ai/zen/v1/messages (PR #4099)
-		messagesURL := "https://opencode.ai/zen/v1/messages"
-		staticH := map[string]string(nil)
-		if req.Config != nil {
-			staticH = req.Config.StaticHeaders
-		}
-		isRelay := staticH != nil && staticH["x-relay-target"] != ""
-		if isRelay {
-			messagesURL = req.Config.BaseURL
-			headersCopy := make(map[string]string, len(staticH))
-			for k, v := range staticH {
-				headersCopy[k] = v
-			}
-			headersCopy["x-relay-path"] = "/zen/v1/messages"
-			staticH = headersCopy
-		} else if req.Config != nil && req.Config.BaseURL != "" && !strings.Contains(req.Config.BaseURL, "opencode.ai") {
-			base := strings.TrimRight(req.Config.BaseURL, "/")
-			if strings.HasSuffix(base, "/chat/completions") {
-				base = strings.TrimSuffix(base, "/chat/completions")
-			}
-			messagesURL = base + "/messages"
-		}
-		headers := proxy.BuildOpenCodeHeaders(staticH, req.SessionID, true)
-		headers["anthropic-version"] = "2023-06-01"
-		ctx := req.Ctx
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		body := ensureMessagesMaxTokens(req.Body, cleanModel)
-		var msgMap map[string]any
-		if err := json.Unmarshal(body, &msgMap); err == nil {
-			msgMap["stream"] = true
-			if b, err := json.Marshal(msgMap); err == nil {
-				body = b
-			}
-		}
-		resp, err := proxy.DoRequest(ctx, req.Client, "POST", messagesURL, headers, body)
-		if err != nil {
-			return fmt.Errorf("ForwardOpencode (union-alpha messages route): %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
-			return &proxy.UpstreamError{StatusCode: resp.StatusCode, Body: errBody}
-		}
-
-		if req.IsStream {
-			return handleClaudeMessagesStream(w, req, resp.Body)
-		}
-		var sseChunks []byte
-		var state translator.ClaudeToOpenAIStreamState
-		_ = proxy.ScanStream(resp.Body, func(payload []byte) {
-			if oaiChunk, cErr := translator.TranslateClaudeChunkToOpenAI(payload, &state); cErr == nil && oaiChunk != nil {
-				sseChunks = append(sseChunks, oaiChunk...)
-			}
-		})
-		converted, ok := sseToOpenAIJSON(sseChunks)
-		if !ok {
-			converted = sseChunks
-		}
-		return jsonResponse(req.Ctx, w, bytes.NewReader(converted), req.TranslateResp, req.ResponseBuf)
-	}
-
-	body := InjectReasoningContent(req.Body, "opencode")
-	// opencode Chat Completions path: same conceal + restore of tool names.
-	body, toolNameMap := translator.ConcealFingerprintTools(body)
-	req.Ctx = translator.WithToolNameMap(req.Ctx, toolNameMap)
-	w = NewToolNameRestoringWriter(w, toolNameMap)
-
-	// Upstream OpenCode free tier strictly requires stream=true.
-	// Non-streaming calls are blocked with 403 FreeTierError.
-	var reqMap map[string]any
-	if err := json.Unmarshal(body, &reqMap); err == nil {
-		reqMap["stream"] = true
-		if cleanModel != "" {
-			reqMap["model"] = cleanModel
-		}
-		if b, err := json.Marshal(reqMap); err == nil {
-			body = b
-		}
-	}
-
-	cfg := *req.Config
-	cfg.StaticHeaders = proxy.BuildOpenCodeHeaders(cfg.StaticHeaders, req.SessionID, true)
-
-	ctx := req.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	resp, err := proxy.ForwardOpenAI(ctx, req.Client, &cfg, apiKey, body, true)
-	if err != nil {
-		return fmt.Errorf("ForwardOpencode: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
-		return &proxy.UpstreamError{StatusCode: resp.StatusCode, Body: errBody}
-	}
-
-	if req.IsStream {
-		return execSSEStream(w, resp.Body, req)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
-	if err != nil {
-		return fmt.Errorf("read opencode response: %w", err)
-	}
-	if converted, ok := sseToOpenAIJSON(data); ok {
-		data = converted
-	}
-	return jsonResponse(req.Ctx, w, bytes.NewReader(data), req.TranslateResp, req.ResponseBuf)
-}
-
-var opencodeGoMessagesModels = map[string]bool{
-	"minimax-m3":    true,
-	"minimax-m2.7":  true,
-	"minimax-m2.5":  true,
-	"qwen3.8-max":   true,
-	"qwen3.8-flash": true,
-	"qwen3.7-max":   true,
-	"qwen3.7-plus":  true,
-	"qwen3.6-plus":  true,
-	"union-alpha":   true,
 }
 
 // EnsureClaudeMessages exposes the OpenAI→Claude Messages request conversion
@@ -846,11 +457,7 @@ func convertToolChoiceToClaude(tc any) any {
 }
 
 // sanitizeToolUseID returns a tool id valid for the Anthropic Messages API
-// (must match ^[a-zA-Z0-9_-]+$). Ids from other upstreams (e.g. Gemini
-// function-call history translated to OpenAI format) may contain other
-// characters; those are rewritten deterministically as "toolu_<sha256>" so
-// the same id always maps to the same replacement, keeping tool_use and
-// tool_result blocks paired. mapping must be shared across the whole request.
+// (must match ^[a-zA-Z0-9_-]+$).
 func sanitizeToolUseID(id string, mapping map[string]string) string {
 	if id == "" {
 		return id
@@ -877,10 +484,6 @@ func sanitizeToolUseID(id string, mapping map[string]string) string {
 }
 
 func convertOpenAIMessagesToClaude(messages []any) (systemText string, claudeMessages []any) {
-	// Anthropic requires tool_use.id / tool_use_id to match ^[a-zA-Z0-9_-]+$.
-	// History from other upstreams (e.g. Gemini) can contain ids with other
-	// characters; rewrite them deterministically, with a single mapping shared
-	// across the whole conversation so tool_use and tool_result stay paired.
 	toolIDMap := map[string]string{}
 	var systemParts []string
 	intermediate := make([]map[string]any, 0, len(messages))
@@ -1023,244 +626,4 @@ func normalizeClaudeBlocks(c any) []any {
 	default:
 		return []any{map[string]any{"type": "text", "text": fmt.Sprint(v)}}
 	}
-}
-
-func isOpencodeResponsesModel(model string) bool {
-	base := model
-	if parenIdx := strings.IndexByte(base, '('); parenIdx != -1 {
-		base = base[:parenIdx]
-	}
-	return strings.Contains(base, "muse-spark") || base == "grok-4.6" || base == "gpt-5.6-luna"
-}
-
-func deriveOpencodeSession(rawSession, clientTool, connID string) string {
-	raw := strings.TrimSpace(rawSession)
-	if raw == "" {
-		raw = strings.TrimSpace(connID)
-	}
-	if raw == "" {
-		raw = "default"
-	}
-	return proxy.TranslateOpenCodeSessionID(raw, clientTool)
-}
-
-func normalizeMuseSparkResponsesBody(body []byte, cleanModel string) ([]byte, error) {
-	var m map[string]any
-	if err := json.Unmarshal(body, &m); err != nil {
-		return body, nil
-	}
-	if rEffort, ok := m["reasoning_effort"].(string); ok {
-		if rEffort == "max" {
-			rEffort = "xhigh"
-		}
-		m["reasoning"] = map[string]any{
-			"effort":  rEffort,
-			"summary": "auto",
-		}
-		delete(m, "reasoning_effort")
-	} else if rMap, ok := m["reasoning"].(map[string]any); ok {
-		if eff, ok := rMap["effort"].(string); ok && eff == "max" {
-			rMap["effort"] = "xhigh"
-		}
-		rMap["summary"] = "auto"
-	}
-	// PR #4061: Strip prior reasoning items & continuity properties
-	if inList, ok := m["input"].([]any); ok {
-		cleanInput := make([]any, 0, len(inList))
-		for _, item := range inList {
-			if itemMap, ok := item.(map[string]any); ok {
-				if itemMap["type"] == "reasoning" {
-					continue
-				}
-				delete(itemMap, "encrypted_content")
-				delete(itemMap, "reasoning_encrypted_content")
-				cleanInput = append(cleanInput, itemMap)
-			} else {
-				cleanInput = append(cleanInput, item)
-			}
-		}
-		m["input"] = cleanInput
-	}
-	// PR #4062: Normalize explicit non-auto tool_choice to "auto" on muse-spark-1.3
-	if strings.Contains(cleanModel, "muse-spark-1.3") {
-		if tc, ok := m["tool_choice"]; ok && tc != nil {
-			if tcStr, ok := tc.(string); !ok || tcStr != "auto" {
-				m["tool_choice"] = "auto"
-			}
-		}
-	}
-	return json.Marshal(m)
-}
-
-// ForwardOpencodeGo handles requests for opencode-go (paid tier).
-func ForwardOpencodeGo(w http.ResponseWriter, req *Request) error {
-	body := InjectReasoningContent(req.Body, "opencode-go")
-
-	var reqObj struct {
-		Model string `json:"model"`
-	}
-	if err := json.Unmarshal(body, &reqObj); err != nil {
-		log.Warn("executor", "opencode unmarshal body", "error", err)
-	}
-
-	sessionHeader := deriveOpencodeSession(req.SessionID, "", req.ConnectionID)
-
-	cleanModel := strings.TrimPrefix(reqObj.Model, "oc/")
-	cleanModel = strings.TrimPrefix(cleanModel, "opencode-go/")
-	cleanModel = strings.TrimPrefix(cleanModel, "opencode/")
-	cleanModel = strings.TrimPrefix(cleanModel, "antigravity/")
-	cleanModel = strings.TrimPrefix(cleanModel, "ag/")
-	if parenIdx := strings.IndexByte(cleanModel, '('); parenIdx != -1 {
-		cleanModel = cleanModel[:parenIdx]
-	}
-
-	if isOpencodeResponsesModel(cleanModel) {
-		// Route through Responses API format: https://opencode.ai/zen/go/v1/responses (#3819, #3820, v0.5.75)
-		transformedBody, _, err := buildResponsesBody(req.Body)
-		if err != nil {
-			return fmt.Errorf("transform body for opencode-go muse-spark: %w", err)
-		}
-
-		transformedBody, err = normalizeMuseSparkResponsesBody(transformedBody, cleanModel)
-		if err != nil {
-			return fmt.Errorf("normalize opencode-go muse-spark body: %w", err)
-		}
-
-		cfg := *req.Config
-		isRelay := cfg.StaticHeaders != nil && cfg.StaticHeaders["x-relay-target"] != ""
-		if isRelay {
-			headersCopy := make(map[string]string, len(cfg.StaticHeaders))
-			for k, v := range cfg.StaticHeaders {
-				headersCopy[k] = v
-			}
-			headersCopy["x-relay-path"] = "/zen/go/v1/responses"
-			cfg.StaticHeaders = headersCopy
-		} else if !strings.HasSuffix(cfg.BaseURL, "/responses") {
-			baseURL := strings.TrimRight(cfg.BaseURL, "/")
-			if strings.HasSuffix(baseURL, "/chat/completions") {
-				baseURL = strings.TrimSuffix(baseURL, "/chat/completions")
-			}
-			cfg.BaseURL = baseURL + "/responses"
-		}
-		headers := make(map[string]string)
-		for k, v := range cfg.StaticHeaders {
-			headers[k] = v
-		}
-		if headers["User-Agent"] == "" || !proxy.HasValidOpenCodeVersion(headers["User-Agent"]) {
-			headers["User-Agent"] = proxy.DefaultOpenCodeUA
-		}
-		if headers["x-opencode-client"] == "" {
-			headers["x-opencode-client"] = "desktop"
-		}
-		if headers["x-opencode-request"] == "" {
-			headers["x-opencode-request"] = proxy.GenerateOpenCodeRequestID()
-		}
-		headers["x-opencode-session"] = sessionHeader
-		cfg.StaticHeaders = headers
-
-		ctx := req.Ctx
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		resp, err := proxy.ForwardOpenAI(ctx, req.Client, &cfg, req.APIKey, transformedBody, req.IsStream)
-		if err != nil {
-			return fmt.Errorf("ForwardOpencodeGo (muse-spark responses): %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
-			return &proxy.UpstreamError{StatusCode: resp.StatusCode, Body: errBody}
-		}
-
-		if req.IsStream {
-			stallReader := proxy.NewStallReaderWithContext(ctx, resp.Body, 0, "opencode-go-responses")
-			defer stallReader.Close()
-			return handleCodexStream(w, req, stallReader)
-		}
-		return handleCodexStream(w, req, resp.Body)
-	}
-
-	if opencodeGoMessagesModels[reqObj.Model] || opencodeGoMessagesModels[cleanModel] || cleanModel == "union-alpha" {
-		// Route to /zen/go/v1/messages (Anthropic/Claude format)
-		messagesURL := "https://opencode.ai/zen/go/v1/messages"
-		if req.Config != nil && req.Config.BaseURL != "" && !strings.Contains(req.Config.BaseURL, "opencode.ai") {
-			base := strings.TrimRight(req.Config.BaseURL, "/")
-			if strings.HasSuffix(base, "/chat/completions") {
-				base = strings.TrimSuffix(base, "/chat/completions")
-			}
-			messagesURL = base + "/messages"
-		}
-		headers := map[string]string{
-			"Content-Type":       "application/json",
-			"x-api-key":          req.APIKey,
-			"anthropic-version":  "2023-06-01",
-			"x-opencode-session": sessionHeader,
-		}
-		if req.IsStream {
-			headers["Accept"] = "text/event-stream"
-		}
-		ctx := req.Ctx
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		messagesBody := ensureMessagesMaxTokens(body, cleanModel)
-		resp, err := proxy.DoRequest(ctx, req.Client, "POST", messagesURL, headers, messagesBody)
-		if err != nil {
-			return fmt.Errorf("ForwardOpencodeGo (messages route): %w", err)
-		}
-		defer resp.Body.Close()
-
-		if req.IsStream {
-			return handleClaudeMessagesStream(w, req, resp.Body)
-		}
-		return handleClaudeMessagesNonStream(w, req, resp.Body)
-	}
-
-	// Default OpenAI format endpoint: https://opencode.ai/zen/go/v1/chat/completions
-	body, toolNameMap := translator.ConcealFingerprintTools(body)
-	req.Ctx = translator.WithToolNameMap(req.Ctx, toolNameMap)
-	w = NewToolNameRestoringWriter(w, toolNameMap)
-
-	var reqGoMap map[string]any
-	if err := json.Unmarshal(body, &reqGoMap); err == nil {
-		if cleanModel != "" {
-			reqGoMap["model"] = cleanModel
-		}
-		if b, err := json.Marshal(reqGoMap); err == nil {
-			body = b
-		}
-	}
-
-	cfg := *req.Config
-	headers := make(map[string]string)
-	for k, v := range cfg.StaticHeaders {
-		headers[k] = v
-	}
-	if headers["User-Agent"] == "" || !proxy.HasValidOpenCodeVersion(headers["User-Agent"]) {
-		headers["User-Agent"] = proxy.DefaultOpenCodeUA
-	}
-	if headers["x-opencode-client"] == "" {
-		headers["x-opencode-client"] = "desktop"
-	}
-	if headers["x-opencode-request"] == "" {
-		headers["x-opencode-request"] = proxy.GenerateOpenCodeRequestID()
-	}
-	headers["x-opencode-session"] = sessionHeader
-	cfg.StaticHeaders = headers
-
-	ctx := req.Ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	resp, err := proxy.ForwardOpenAI(ctx, req.Client, &cfg, req.APIKey, body, req.IsStream)
-	if err != nil {
-		return fmt.Errorf("ForwardOpencodeGo (default route): %w", err)
-	}
-	defer resp.Body.Close()
-
-	if req.IsStream {
-		return execSSEStream(w, resp.Body, req)
-	}
-	return jsonResponse(req.Ctx, w, resp.Body, req.TranslateResp, req.ResponseBuf)
 }

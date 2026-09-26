@@ -23,10 +23,10 @@ func TestHandleCreateConnection_StoresModalFields(t *testing.T) {
 	router := setupTestRouter(repo)
 
 	body := `{
-		"provider": "clinepass",
+		"provider": "commandcode",
 		"authType": "apikey",
-		"name": "ClinePass Production",
-		"apiKey": "sk-cline-secret",
+		"name": "CommandCode Production",
+		"apiKey": "sk-commandcode-secret",
 		"priority": 7,
 		"testStatus": "active",
 		"proxyPoolId": "pool-42",
@@ -49,7 +49,7 @@ func TestHandleCreateConnection_StoresModalFields(t *testing.T) {
 	if err != nil || conn == nil {
 		t.Fatalf("failed to reload connection: %v", err)
 	}
-	if conn.Name == nil || *conn.Name != "ClinePass Production" {
+	if conn.Name == nil || *conn.Name != "CommandCode Production" {
 		t.Errorf("unexpected name %v", conn.Name)
 	}
 	if conn.Priority == nil || *conn.Priority != 7 {
@@ -60,7 +60,7 @@ func TestHandleCreateConnection_StoresModalFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(conn.Data), &data); err != nil {
 		t.Fatalf("decode connection data: %v", err)
 	}
-	if data["apiKey"] != "sk-cline-secret" {
+	if data["apiKey"] != "sk-commandcode-secret" {
 		t.Errorf("expected apiKey stored, got %v", data["apiKey"])
 	}
 	if data["testStatus"] != "active" {
@@ -80,7 +80,7 @@ func TestHandleCreateConnection_DefaultsPriorityToNextFreeSlot(t *testing.T) {
 	defer cleanup()
 	router := setupTestRouter(repo)
 
-	first := postConnection(t, router, `{"provider":"deepseek","name":"First","apiKey":"k1"}`)
+	first := postConnection(t, router, `{"provider":"commandcode","name":"First","apiKey":"k1"}`)
 	if first.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (%s)", first.Code, first.Body.String())
 	}
@@ -91,7 +91,7 @@ func TestHandleCreateConnection_DefaultsPriorityToNextFreeSlot(t *testing.T) {
 		t.Fatalf("expected first connection priority 1, got %v", firstConn.Priority)
 	}
 
-	second := postConnection(t, router, `{"provider":"deepseek","name":"Second","apiKey":"k2"}`)
+	second := postConnection(t, router, `{"provider":"commandcode","name":"Second","apiKey":"k2"}`)
 	if second.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (%s)", second.Code, second.Body.String())
 	}
@@ -108,7 +108,7 @@ func TestHandleCreateConnection_KeepsLegacyDataString(t *testing.T) {
 	defer cleanup()
 	router := setupTestRouter(repo)
 
-	body := `{"provider":"cline","authType":"oauth","name":"OAuth Conn","data":"{\"refreshToken\":\"rt-1\",\"accessToken\":\"at-1\"}"}`
+	body := `{"provider":"github","authType":"oauth","name":"OAuth Conn","data":"{\"refreshToken\":\"rt-1\",\"accessToken\":\"at-1\"}"}`
 	rec := postConnection(t, router, body)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())

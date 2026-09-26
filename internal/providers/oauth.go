@@ -43,11 +43,6 @@ var KnownOAuthConfigs = map[string]OAuthClientConfig{
 		ClientSecret: envOr("ANTIGRAVITY_OAUTH_CLIENT_SECRET", "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"),
 		TokenURL:     "https://oauth2.googleapis.com/token",
 	},
-	"xai": {
-		ClientID:     envOr("XAI_OAUTH_CLIENT_ID", "b1a00492-073a-47ea-816f-4c329264a828"),
-		ClientSecret: envOr("XAI_OAUTH_CLIENT_SECRET", ""),
-		TokenURL:     "https://auth.x.ai/oauth2/token",
-	},
 	"codex": {
 		ClientID:     envOr("CODEX_OAUTH_CLIENT_ID", "app_EMoamEEZ73f0CkXaXp7hrann"),
 		ClientSecret: envOr("CODEX_OAUTH_CLIENT_SECRET", ""),
@@ -58,26 +53,6 @@ var KnownOAuthConfigs = map[string]OAuthClientConfig{
 		ClientSecret: envOr("GITHUB_OAUTH_CLIENT_SECRET", ""),
 		TokenURL:     "https://github.com/login/oauth/access_token",
 	},
-	"iflow": {
-		ClientID:     envOr("IFLOW_OAUTH_CLIENT_ID", "10009311001"),
-		ClientSecret: envOr("IFLOW_OAUTH_CLIENT_SECRET", "4Z3YjXycVsQvyGF1etiNlIBB4RsqSDtW"),
-		TokenURL:     "https://iflow.cn/oauth/token",
-	},
-	"gemini-cli": {
-		ClientID:     envOr("GEMINI_CLI_OAUTH_CLIENT_ID", "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"),
-		ClientSecret: envOr("GEMINI_CLI_OAUTH_CLIENT_SECRET", "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"),
-		TokenURL:     "https://oauth2.googleapis.com/token",
-	},
-	"kimi-coding": {
-		ClientID:     envOr("KIMI_CODING_OAUTH_CLIENT_ID", ""),
-		ClientSecret: envOr("KIMI_CODING_OAUTH_CLIENT_SECRET", ""),
-		TokenURL:     "https://auth.kimi.com/api/oauth/token",
-	},
-	"qoder": {
-		ClientID:     envOr("QODER_OAUTH_CLIENT_ID", ""),
-		ClientSecret: envOr("QODER_OAUTH_CLIENT_SECRET", ""),
-		TokenURL:     "https://center.qoder.sh/algo/api/v3/user/refresh_token",
-	},
 	"codebuddy-cn": {
 		ClientID:     envOr("CODEBUDDY_CN_OAUTH_CLIENT_ID", ""),
 		ClientSecret: envOr("CODEBUDDY_CN_OAUTH_CLIENT_SECRET", ""),
@@ -87,16 +62,6 @@ var KnownOAuthConfigs = map[string]OAuthClientConfig{
 		ClientID:     envOr("CODEBUDDY_INTL_OAUTH_CLIENT_ID", ""),
 		ClientSecret: envOr("CODEBUDDY_INTL_OAUTH_CLIENT_SECRET", ""),
 		TokenURL:     "https://copilot.tencent.com/v2/plugin/auth/token/refresh",
-	},
-	"cline": {
-		ClientID:     envOr("CLINE_OAUTH_CLIENT_ID", ""),
-		ClientSecret: envOr("CLINE_OAUTH_CLIENT_SECRET", ""),
-		TokenURL:     "https://api.cline.bot/api/v1/auth/refresh",
-	},
-	"clinepass": {
-		ClientID:     envOr("CLINE_OAUTH_CLIENT_ID", ""),
-		ClientSecret: envOr("CLINE_OAUTH_CLIENT_SECRET", ""),
-		TokenURL:     "https://api.cline.bot/api/v1/auth/refresh",
 	},
 }
 

@@ -8,43 +8,6 @@ import (
 	"testing"
 )
 
-func TestSuggestedModelsOpencodeFree(t *testing.T) {
-	feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"data":[
-			{"id":"muse-spark-free"},
-			{"id":"big-pickle"},
-			{"id":"deepseek-v4-flash-free"},
-			{"id":"gpt-paid"}
-		]}`))
-	}))
-	defer feed.Close()
-
-	req := httptest.NewRequest(http.MethodGet,
-		"/api/providers/suggested-models?url="+url.QueryEscape(feed.URL)+"&type=opencode-free", nil)
-	rec := httptest.NewRecorder()
-	HandleSuggestedModels(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var out struct {
-		Data []suggestedModel `json:"data"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-		t.Fatalf("failed to unmarshal: %v", err)
-	}
-	ids := map[string]bool{}
-	for _, m := range out.Data {
-		ids[m.ID] = true
-	}
-	if !ids["muse-spark-free"] || !ids["big-pickle"] {
-		t.Fatalf("expected free models, got %v", out.Data)
-	}
-	if ids["deepseek-v4-flash-free"] || ids["gpt-paid"] {
-		t.Fatalf("dead/paid models should be filtered, got %v", out.Data)
-	}
-}
-
 func TestSuggestedModelsOpenRouterFree(t *testing.T) {
 	feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -89,7 +52,7 @@ func TestSuggestedModelsBadRequests(t *testing.T) {
 
 	// Unreachable feed → 200 with empty data (upstream parity).
 	req := httptest.NewRequest(http.MethodGet,
-		"/api/providers/suggested-models?url=http://127.0.0.1:1/nope&type=mimo-free", nil)
+		"/api/providers/suggested-models?url=http://127.0.0.1:1/nope&type=openrouter-free", nil)
 	rec := httptest.NewRecorder()
 	HandleSuggestedModels(rec, req)
 	if rec.Code != http.StatusOK {

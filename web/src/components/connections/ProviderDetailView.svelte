@@ -4,7 +4,6 @@
     api,
     type ConnectionUsageResponse,
     type CreateConnectionPayload,
-    type FreebuffSessionStatusResponse,
     type ProviderConnection,
     type ProviderNode,
     type ProxyPool,
@@ -40,7 +39,6 @@
   import AddCustomModelModal from './AddCustomModelModal.svelte'
   import AddCompatibleNodeModal from './AddCompatibleNodeModal.svelte'
   import EditCompatibleNodeModal from './EditCompatibleNodeModal.svelte'
-  import FreebuffSessionBanner from './FreebuffSessionBanner.svelte'
 
   interface Props {
     providerId: string
@@ -82,34 +80,18 @@
   let providerNoticeText = $derived(selectedCatalogItem?.notice?.text || '')
   let providerNoticeApiKeyUrl = $derived(selectedCatalogItem?.notice?.apiKeyUrl || '')
   let isOAuth = $derived(selectedCatalogItem?.category === 'oauth')
-  let isClineOAuth = $derived(providerId === 'cline' || providerId === 'clinepass')
-  let isPKCEOAuth = $derived(providerId === 'claude' || providerId === 'codex' || providerId === 'xai' || providerId === 'gitlab')
-  let isAuthCodeOAuth = $derived(providerId === 'gemini-cli' || providerId === 'iflow')
-  let isCustomOAuth = $derived(providerId === 'trae' || providerId === 'windsurf' || providerId === 'zed')
+  let isPKCEOAuth = $derived(providerId === 'codex')
   // Upstream parity: providers with authModes ["apikey","oauth"] offer both an
-  // OAuth login and a manual API Key button (data-driven, category-independent
-  // so freeTier kimchi is covered too — mirrors upstream hasDualAuthModes).
+  // OAuth login and a manual API Key button (data-driven, category-independent).
   let authModes = $derived(selectedCatalogItem?.authModes || [])
   let hasDualAuthModes = $derived(
     !selectedNode && authModes.includes('oauth') && authModes.includes('apikey')
   )
-  // Upstream per-provider button labels ([id]/page.js).
-  let oauthButtonLabel = $derived(
-    providerId === 'xai' ? 'Grok Build OAuth' : providerId === 'kimi' ? 'Kimi Coding OAuth' : 'OAuth'
-  )
-  let apiKeyButtonLabel = $derived(
-    providerId === 'xai'
-      ? 'xAI API Key'
-      : providerId === 'kimi'
-        ? 'Kimi API Key'
-        : providerId === 'qoder'
-          ? 'PAT'
-          : 'API Key'
-  )
+  // Upstream per-provider button labels.
+  let oauthButtonLabel = $derived('OAuth')
+  let apiKeyButtonLabel = $derived('API Key')
   let isDeviceOAuth = $derived(
-    providerId === 'qoder' || providerId === 'kilocode' || providerId === 'grok-cli' ||
-    providerId === 'github' || providerId === 'kiro' || providerId === 'kimi' ||
-    providerId === 'kimi-coding' || providerId === 'codebuddy-cn' || providerId === 'codebuddy-intl'
+    providerId === 'github' || providerId === 'codebuddy-cn' || providerId === 'codebuddy-intl'
   )
   let isNoAuth = $derived(selectedCatalogItem?.noAuth === true || selectedCatalogItem?.category === 'free')
   let hasRiskNotice = $derived(providerId === 'antigravity' || Boolean(selectedCatalogItem?.notice?.text?.includes('RISK_NOTICE')))
@@ -129,10 +111,6 @@
     }, 1000)
     return () => {
       clearInterval(timer)
-      if (freebuffPollTimer) {
-        clearInterval(freebuffPollTimer)
-        freebuffPollTimer = null
-      }
     }
   })
 
@@ -272,21 +250,11 @@
   let callbackInput = $state('')
   let oauthError = $state<string | null>(null)
   let isConnecting = $state(false)
-  let clineCodeVerifier = $state('')
-  let clineRedirectUri = $state('')
   let pkceCodeVerifier = $state('')
   let pkceState = $state('')
   let pkceRedirectUri = $state('')
-  let gitlabBaseUrl = $state('')
-  let gitlabClientId = $state('')
-  let gitlabClientSecret = $state('')
-  let customState = $state('')
-  let customVerifier = $state('')
-  let customSystemId = $state('')
   let deviceUserCode = $state('')
   let deviceCode = $state('')
-  let deviceSession: Record<string, unknown> = $state({})
-  let deviceInterval = $state(5)
   let devicePollTimer: ReturnType<typeof setInterval> | null = $state(null)
   // OAuth auto-handoff: callback tab writes to storage + BroadcastChannel,
   // this modal restores the pending session and auto-submits.
@@ -338,25 +306,15 @@
     if (!pending || pending.provider !== providerId) return false
     // Restore session values saved at authorize time.
     if (pending.verifier) {
-      if (isClineOAuth) clineCodeVerifier = pending.verifier
-      else if (isPKCEOAuth) pkceCodeVerifier = pending.verifier
-      else customVerifier = pending.verifier
+      if (isPKCEOAuth) pkceCodeVerifier = pending.verifier
     }
     if (pending.redirectUri) {
-      if (isClineOAuth) clineRedirectUri = pending.redirectUri
-      else pkceRedirectUri = pending.redirectUri
+      if (isPKCEOAuth) pkceRedirectUri = pending.redirectUri
     }
     const extra = pending.extra || {}
     if (extra.state) {
-      if (isCustomOAuth) customState = extra.state
-      else pkceState = extra.state
+      pkceState = extra.state
     }
-    if (providerId === 'gitlab') {
-      if (extra.baseUrl) gitlabBaseUrl = extra.baseUrl
-      if (extra.clientId) gitlabClientId = extra.clientId
-      if (extra.clientSecret) gitlabClientSecret = extra.clientSecret
-    }
-    if (extra.systemId) customSystemId = extra.systemId
     callbackInput = cb.raw
     try {
       clearPending(window.localStorage, pending.provider, pending.state)
@@ -442,13 +400,6 @@
       clearInterval(timer)
     }
   })
-  let isSpecialOAuth = $derived(
-    providerId === 'cursor' || providerId === 'kimchi' || providerId === 'xiaomi-mimo'
-  )
-  let specialToken = $state('')
-  let specialExtra = $state('')
-  let specialBaseUrl = $state('')
-
   let showApplyProxyModal = $state(false)
   let isApplyingProxy = $state(false)
 
@@ -464,151 +415,6 @@
   let addConnectionError = $state('')
   let showAddCustomModelModal = $state(false)
   let showEditNodeModal = $state(false)
-  // Freebuff specific state & session tracking
-  let isFreebuff = $derived(
-    providerId === 'freebuff' || storageAlias === 'fb' || storageAlias === 'freebuff'
-  )
-  // The session API has to be asked about an account that can actually serve.
-  // Connections are ordered by priority, and a disabled one can sort first —
-  // its rejected credential reports `banned`/`unauthorized` and blanks the
-  // panel while the live seat sits on the next account.
-  let selectedFreebuffConnId = $state<string>('')
-  let freebuffSessions = $state<Record<string, FreebuffSessionStatusResponse>>({})
-  let targetFreebuffConn = $derived.by(() => {
-    if (selectedFreebuffConnId) {
-      const found = providerConnections.find((c) => c.id === selectedFreebuffConnId)
-      if (found) return found
-    }
-    return providerConnections.find((c) => c.isActive === 1) ?? providerConnections[0]
-  })
-  let freebuffConnection = $derived(targetFreebuffConn)
-  let freebuffSession = $state<FreebuffSessionStatusResponse | null>(null)
-  let isLoadingSession = $state(false)
-  let isAuthorizingFreebuff = $state(false)
-  let freebuffPollTimer = $state<ReturnType<typeof setInterval> | null>(null)
-  let currentFreebuffInit = $state<{
-    fingerprintId: string
-    fingerprintHash: string
-    expiresAt: number
-    loginUrl: string
-  } | null>(null)
-
-  async function loadFreebuffSession() {
-    if (!isFreebuff || providerConnections.length === 0) {
-      freebuffSession = null
-      return
-    }
-    const target = targetFreebuffConn
-    if (!target) {
-      freebuffSession = null
-      return
-    }
-    isLoadingSession = true
-    try {
-      const res = await api.getFreebuffSessionStatus(target.id)
-      freebuffSession = res
-      if (res && target.id) {
-        freebuffSessions = { ...freebuffSessions, [target.id]: res }
-      }
-      for (const c of providerConnections) {
-        if (c.id !== target.id) {
-          api.getFreebuffSessionStatus(c.id).then((st) => {
-            if (st) {
-              freebuffSessions = { ...freebuffSessions, [c.id]: st }
-            }
-          }).catch(() => {})
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch Freebuff session status:', err)
-      freebuffSession = null
-    } finally {
-      isLoadingSession = false
-    }
-  }
-
-  function selectFreebuffAccount(connId: string) {
-    selectedFreebuffConnId = connId
-    loadFreebuffSession()
-  }
-
-  let sessionExpiresInMin = $derived.by(() => {
-    if (!freebuffSession?.expiresAt) return null
-    const exp = new Date(freebuffSession.expiresAt).getTime()
-    const diffMs = exp - Date.now()
-    return Math.max(0, Math.round(diffMs / 60000))
-  })
-
-  function checkIsActiveSession(modelId: string): boolean {
-    if (!isFreebuff || freebuffSession?.status !== 'active' || !freebuffSession?.currentModel) {
-      return false
-    }
-    const cur = freebuffSession.currentModel.toLowerCase().trim()
-    const mid = modelId.toLowerCase().trim()
-    return mid === cur || mid.endsWith('/' + cur) || cur.endsWith('/' + mid)
-  }
-
-  // Ends the active Freebuff session and re-admits it on the chosen model.
-  // Freebuff serves one model per session and a session lives an hour even when
-  // idle, so this is the only way to change models without waiting it out —
-  // and it must stay an explicit user action (each switch spends a session).
-  async function switchFreebuffModel(model: string) {
-    const target = targetFreebuffConn
-    const res = await api.switchFreebuffSession(model, target?.id)
-    await loadFreebuffSession()
-    onRefresh()
-    return res
-  }
-
-  async function startFreebuffFlow() {
-    try {
-      isAuthorizingFreebuff = true
-      oauthError = null
-      callbackInput = ''
-      copiedAuthUrl = false
-      const init = await api.initiateFreebuff()
-      currentFreebuffInit = {
-        fingerprintId: init.fingerprintId,
-        fingerprintHash: init.fingerprintHash,
-        expiresAt: init.expiresAt,
-        loginUrl: init.loginUrl
-      }
-      oauthAuthUrl = init.loginUrl
-      showOAuthModal = true
-
-      if (typeof window !== 'undefined' && init.loginUrl) {
-        window.open(init.loginUrl, '_blank')
-      }
-
-      if (freebuffPollTimer) clearInterval(freebuffPollTimer)
-      freebuffPollTimer = setInterval(async () => {
-        try {
-          if (!showOAuthModal) {
-            if (freebuffPollTimer) {
-              clearInterval(freebuffPollTimer)
-              freebuffPollTimer = null
-            }
-            isAuthorizingFreebuff = false
-            return
-          }
-          const res = await api.pollFreebuff(init.fingerprintId, init.fingerprintHash, init.expiresAt)
-          if (res?.status === 'authorized') {
-            if (freebuffPollTimer) {
-              clearInterval(freebuffPollTimer)
-              freebuffPollTimer = null
-            }
-            isAuthorizingFreebuff = false
-            showOAuthModal = false
-            onRefresh()
-            loadFreebuffSession()
-          }
-        } catch {}
-      }, 2500)
-    } catch (err) {
-      isAuthorizingFreebuff = false
-      alert(`Failed to start Freebuff flow: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
 
   // Load models, settings, proxy pools
   async function loadData() {
@@ -656,9 +462,6 @@
             connectionQuotas[c.id] = usage
           }
         }).catch(() => {})
-      }
-      if (isFreebuff) {
-        loadFreebuffSession()
       }
     } catch (err) {
       console.error('Failed to load provider details:', err)
@@ -1148,28 +951,18 @@
   // Add Connection Button flow
   async function handleAddConnectionClick() {
     if (providerId === 'antigravity') {
-      const confirmed = typeof window !== 'undefined' && localStorage.getItem('ag_risk_confirmed') === 'true'
-      if (!confirmed) {
+      if (hasRiskNotice && typeof window !== 'undefined' && !localStorage.getItem('ag_risk_confirmed')) {
         showRiskNoticeModal = true
-      } else {
-        openAntigravityOAuth()
+        return
       }
-    } else if (providerId === 'freebuff') {
-      startFreebuffFlow()
-    } else if (isClineOAuth) {
-      openClineOAuth()
+      openAntigravityOAuth()
     } else if (isPKCEOAuth) {
       openPKCEOAuth()
-    } else if (isAuthCodeOAuth) {
-      openAuthCodeOAuth()
-    } else if (isCustomOAuth) {
-      openCustomOAuth()
-    } else if (isDeviceOAuth) {
-      openDeviceOAuth()
-    } else if (isSpecialOAuth) {
-      openSpecialOAuth()
     } else if (isOAuth) {
-      openGenericOAuth()
+      // Generic OAuth - show modal for manual token import
+      showOAuthModal = true
+      oauthError = null
+      callbackInput = ''
     } else {
       showAddKeyModal = true
     }
@@ -1212,16 +1005,7 @@
     copiedAuthUrl = false
     try {
       const cb = dashboardCallback()
-      const res = await api.pkceAuthorize(
-        providerId,
-        providerId === 'gitlab'
-          ? {
-              redirectUri: cb,
-              baseUrl: gitlabBaseUrl.trim() || undefined,
-              clientId: gitlabClientId.trim() || undefined,
-            }
-          : { redirectUri: cb }
-      )
+      const res = await api.pkceAuthorize(providerId, { redirectUri: cb })
       oauthAuthUrl = res.url || res.authUrl
       pkceCodeVerifier = res.codeVerifier || ''
       pkceState = res.state || ''
@@ -1230,203 +1014,7 @@
         state: pkceState,
         verifier: pkceCodeVerifier,
         redirectUri: pkceRedirectUri,
-        extra: {
-          state: pkceState,
-          baseUrl: gitlabBaseUrl.trim(),
-          clientId: gitlabClientId.trim(),
-          clientSecret: gitlabClientSecret.trim(),
-        },
       })
-      showOAuthModal = true
-      if (typeof window !== 'undefined' && oauthAuthUrl) {
-        window.open(oauthAuthUrl, '_blank', 'width=600,height=700')
-      }
-    } catch (err) {
-      alert(`Failed to initiate authorization: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
-
-  async function openAuthCodeOAuth() {
-    oauthError = null
-    callbackInput = ''
-    copiedAuthUrl = false
-    try {
-      const res = await api.authcodeAuthorize(providerId, dashboardCallback())
-      oauthAuthUrl = res.url || res.authUrl
-      pkceState = res.state || ''
-      pkceRedirectUri = res.redirectUri || ''
-      pkceCodeVerifier = ''
-      rememberPending({ state: pkceState, redirectUri: pkceRedirectUri, extra: { state: pkceState } })
-      showOAuthModal = true
-      if (typeof window !== 'undefined' && oauthAuthUrl) {
-        window.open(oauthAuthUrl, '_blank', 'width=600,height=700')
-      }
-    } catch (err) {
-      alert(`Failed to initiate authorization: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
-
-  async function openCustomOAuth() {
-    oauthError = null
-    callbackInput = ''
-    copiedAuthUrl = false
-    try {
-      const res = await api.customAuthorize(providerId as 'trae' | 'windsurf' | 'zed', dashboardCallback())
-      oauthAuthUrl = res.url || res.authUrl
-      customState = res.state || res.loginTraceId || ''
-      customVerifier = res.codeVerifier || ''
-      customSystemId = res.systemId || ''
-      pkceRedirectUri = res.redirectUri || ''
-      rememberPending({
-        state: customState,
-        verifier: customVerifier,
-        redirectUri: pkceRedirectUri,
-        extra: { state: customState, systemId: customSystemId },
-      })
-      showOAuthModal = true
-      if (typeof window !== 'undefined' && oauthAuthUrl) {
-        window.open(oauthAuthUrl, '_blank', 'width=600,height=700')
-      }
-    } catch (err) {
-      alert(`Failed to initiate authorization: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
-
-  async function openDeviceOAuth() {
-    oauthError = null
-    callbackInput = ''
-    copiedAuthUrl = false
-    stopDevicePoll()
-    try {
-      const res = await api.deviceStart(providerId)
-      oauthAuthUrl = res.verification_uri_complete || res.verification_uri || ''
-      deviceUserCode = res.user_code || ''
-      deviceCode = res.device_code || ''
-      deviceSession = res.session || {}
-      deviceInterval = res.interval && res.interval > 0 ? res.interval : 5
-      showOAuthModal = true
-      if (typeof window !== 'undefined' && oauthAuthUrl) {
-        window.open(oauthAuthUrl, '_blank')
-      }
-      pollDeviceOnce()
-      devicePollTimer = setInterval(pollDeviceOnce, deviceInterval * 1000)
-    } catch (err) {
-      oauthError = err instanceof Error ? err.message : String(err)
-      showOAuthModal = true
-    }
-  }
-
-  async function pollDeviceOnce() {
-    if (!showOAuthModal || !deviceCode) return
-    try {
-      const res = await api.devicePoll(providerId, deviceCode, deviceSession)
-      if (res?.status === 'authorized') {
-        stopDevicePoll()
-        showOAuthModal = false
-        onRefresh()
-      } else if (res?.status === 'error') {
-        stopDevicePoll()
-        oauthError = res?.error || 'Authorization failed'
-      }
-    } catch {
-      // Biarkan polling berikutnya mencoba lagi.
-    }
-  }
-
-  function stopDevicePoll() {
-    if (devicePollTimer) {
-      clearInterval(devicePollTimer)
-      devicePollTimer = null
-    }
-    deviceUserCode = ''
-    deviceCode = ''
-  }
-
-  function openSpecialOAuth() {
-    // cursor (import/auto-import), kimchi (browser token), xiaomi-mimo (ECDH).
-    // gitlab PAT & iflow cookie reuse the generic modal + special submit.
-    oauthError = null
-    callbackInput = ''
-    copiedAuthUrl = false
-    specialToken = ''
-    specialExtra = ''
-    specialBaseUrl = ''
-    customVerifier = ''
-    oauthAuthUrl = ''
-    if (providerId === 'kimchi' || providerId === 'xiaomi-mimo') {
-      openSpecialAuthorize()
-      return
-    }
-    showOAuthModal = true
-  }
-
-  async function openSpecialAuthorize() {
-    try {
-      const cb = dashboardCallback()
-      const res = providerId === 'kimchi'
-        ? await api.kimchiAuthorize(cb)
-        : await api.mimoAuthorize(cb)
-      oauthAuthUrl = res.url || res.authUrl
-      customVerifier = (res as { codeVerifier?: string }).codeVerifier || ''
-      rememberPending({
-        state: (res as { state?: string }).state || '',
-        verifier: customVerifier || undefined,
-      })
-      showOAuthModal = true
-      if (typeof window !== 'undefined' && oauthAuthUrl) {
-        window.open(oauthAuthUrl, '_blank')
-      }
-    } catch (err) {
-      oauthError = err instanceof Error ? err.message : String(err)
-      showOAuthModal = true
-    }
-  }
-
-  async function cursorAutoImportNow() {
-    oauthError = null
-    isConnecting = true
-    try {
-      const res = await api.cursorAutoImport()
-      if (!res || (res as { error?: string })?.error || !(res as { success?: boolean })?.success) {
-        oauthError = (res as { error?: string })?.error || 'Auto-import gagal. Pastikan Cursor IDE terinstall & login di host ini.'
-      } else {
-        showOAuthModal = false
-        onRefresh()
-      }
-    } catch (err) {
-      oauthError = err instanceof Error ? err.message : String(err)
-    } finally {
-      isConnecting = false
-    }
-  }
-
-  function dashboardOrigin(): string {
-    if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin
-    return 'http://localhost:20130'
-  }
-
-  function openGenericOAuth() {
-    // Tidak ada authorize endpoint generik: JANGAN arahkan ke Google/Antigravity.
-    // Tampilkan modal dengan panduan import token manual.
-    oauthError = null
-    oauthAuthUrl = ''
-    callbackInput = ''
-    copiedAuthUrl = false
-    clineCodeVerifier = ''
-    clineRedirectUri = ''
-    showOAuthModal = true
-  }
-
-  async function openClineOAuth() {
-    oauthError = null
-    callbackInput = ''
-    copiedAuthUrl = false
-    try {
-      const res = await api.getClineAuthorizeUrl(providerId, dashboardCallback())
-      oauthAuthUrl = res.url || res.authUrl
-      clineCodeVerifier = res.codeVerifier || ''
-      clineRedirectUri = res.redirectUri || ''
-      rememberPending({ state: res.state || '', verifier: clineCodeVerifier, redirectUri: clineRedirectUri })
       showOAuthModal = true
       if (typeof window !== 'undefined' && oauthAuthUrl) {
         window.open(oauthAuthUrl, '_blank', 'width=600,height=700')
@@ -1448,56 +1036,6 @@
     isConnecting = true
     oauthError = null
     try {
-      if (providerId === 'freebuff') {
-        // Direct manual token input
-        if (raw && !raw.includes('http') && !raw.includes('auth_code=') && raw.length >= 24 && !raw.includes('/')) {
-          await api.createConnection({
-            provider: 'freebuff',
-            authType: 'oauth',
-            name: 'Freebuff (manual)',
-            apiKey: raw,
-          })
-          if (freebuffPollTimer) {
-            clearInterval(freebuffPollTimer)
-            freebuffPollTimer = null
-          }
-          isAuthorizingFreebuff = false
-          showOAuthModal = false
-          onRefresh()
-          loadFreebuffSession()
-          return
-        }
-
-        // Immediate poll verification
-        if (currentFreebuffInit) {
-          const res = await api.pollFreebuff(
-            currentFreebuffInit.fingerprintId,
-            currentFreebuffInit.fingerprintHash,
-            currentFreebuffInit.expiresAt
-          )
-          if (res?.status === 'authorized') {
-            if (freebuffPollTimer) {
-              clearInterval(freebuffPollTimer)
-              freebuffPollTimer = null
-            }
-            isAuthorizingFreebuff = false
-            showOAuthModal = false
-            onRefresh()
-            loadFreebuffSession()
-            return
-          } else if (res?.status === 'pending') {
-            oauthError = 'Status masih pending. Jika tab Freebuff terbuka di halaman /onboard, pastikan selesaikan langkah onboarding di tab tersebut, lalu klik Check & Connect lagi.'
-          } else if (res?.status === 'expired') {
-            oauthError = 'Sesi otorisasi telah kedaluwarsa. Silakan tutup modal ini dan klik Authorize Freebuff CLI ulang.'
-          } else {
-            oauthError = `Status: ${res?.status || 'pending'}. Pastikan login di browser sudah selesai.`
-          }
-        } else {
-          oauthError = 'Sesi Freebuff belum diinisiasi. Silakan klik Authorize Freebuff CLI ulang.'
-        }
-        return
-      }
-
       if (!raw) return
       let code = raw.trim()
       let redirectUri: string | undefined
@@ -1520,24 +1058,6 @@
           break
         }
       }
-      if (isClineOAuth) {
-        if (!clineCodeVerifier) {
-          oauthError = 'Sesi otorisasi belum diinisiasi. Tutup modal ini lalu klik Login ulang.'
-          return
-        }
-        try {
-          const res = await api.clineExchange(providerId, code, clineCodeVerifier, redirectUri || clineRedirectUri || undefined)
-          if (!res || (res as { error?: string })?.error || (res as { status?: string })?.status === 'error') {
-            oauthError = (res as { error?: string })?.error || 'Authorization failed'
-          } else {
-            showOAuthModal = false
-            onRefresh()
-          }
-        } catch (err) {
-          oauthError = err instanceof Error ? err.message : String(err)
-        }
-        return
-      }
       if (isPKCEOAuth) {
         if (!pkceCodeVerifier) {
           oauthError = 'Sesi otorisasi belum diinisiasi. Tutup modal ini lalu klik Login ulang.'
@@ -1550,114 +1070,8 @@
             codeVerifier: pkceCodeVerifier,
             redirectUri: redirectUri || pkceRedirectUri || undefined,
             state: pkceState || undefined,
-            baseUrl: providerId === 'gitlab' ? gitlabBaseUrl.trim() || undefined : undefined,
-            clientId: providerId === 'gitlab' ? gitlabClientId.trim() || undefined : undefined,
-            clientSecret: providerId === 'gitlab' ? gitlabClientSecret.trim() || undefined : undefined,
           })
           if (!res || (res as { error?: string })?.error || (res as { status?: string })?.status === 'error') {
-            oauthError = (res as { error?: string })?.error || 'Authorization failed'
-          } else {
-            showOAuthModal = false
-            onRefresh()
-          }
-        } catch (err) {
-          oauthError = err instanceof Error ? err.message : String(err)
-        }
-        return
-      }
-      if (isAuthCodeOAuth) {
-        try {
-          const res = await api.authcodeExchange({
-            provider: providerId,
-            code,
-            redirectUri: redirectUri || pkceRedirectUri || undefined,
-            state: pkceState || undefined,
-          })
-          if (!res || (res as { error?: string })?.error || (res as { status?: string })?.status === 'error') {
-            oauthError = (res as { error?: string })?.error || 'Authorization failed'
-          } else {
-            showOAuthModal = false
-            onRefresh()
-          }
-        } catch (err) {
-          oauthError = err instanceof Error ? err.message : String(err)
-        }
-        return
-      }
-      if (isCustomOAuth) {
-        if (!raw) return
-        try {
-          const res = await api.customExchange(providerId as 'trae' | 'windsurf' | 'zed', {
-            code: raw,
-            state: customState || undefined,
-            codeVerifier: customVerifier || undefined,
-            systemId: customSystemId || undefined,
-          })
-          if (!res || (res as { error?: string })?.error || (res as { status?: string })?.status === 'error') {
-            oauthError = (res as { error?: string })?.error || 'Authorization failed'
-          } else {
-            showOAuthModal = false
-            onRefresh()
-          }
-        } catch (err) {
-          oauthError = err instanceof Error ? err.message : String(err)
-        }
-        return
-      }
-      if (isSpecialOAuth) {
-        const tok = (specialToken || callbackInput).trim()
-        if (!tok && providerId !== 'cursor') {
-          oauthError = 'Tempel token / callback terlebih dahulu.'
-          return
-        }
-        try {
-          let res: { success?: boolean; status?: string; error?: string } | null = null
-          if (providerId === 'cursor') {
-            if (!tok || !specialExtra.trim()) {
-              oauthError = 'Isi access token dan machine ID.'
-              return
-            }
-            res = await api.cursorImport(tok, specialExtra.trim())
-          } else if (providerId === 'kimchi') {
-            res = await api.kimchiExchange(tok)
-          } else if (providerId === 'xiaomi-mimo') {
-            if (!customVerifier) {
-              oauthError = 'Sesi otorisasi belum diinisiasi. Tutup modal ini lalu klik Login ulang.'
-              return
-            }
-            res = await api.mimoExchange(tok, customVerifier)
-          }
-          if (!res || res?.error || (res.status && res.status === 'error')) {
-            oauthError = res?.error || 'Authorization failed'
-          } else {
-            showOAuthModal = false
-            onRefresh()
-          }
-        } catch (err) {
-          oauthError = err instanceof Error ? err.message : String(err)
-        }
-        return
-      }
-      if (providerId === 'gitlab' && specialToken.trim()) {
-        // GitLab PAT mode (disamping OAuth PKCE).
-        try {
-          const res = await api.gitlabPAT(specialToken.trim(), specialBaseUrl.trim() || undefined)
-          if (!res || (res as { error?: string })?.error || !(res as { success?: boolean })?.success) {
-            oauthError = (res as { error?: string })?.error || 'Authorization failed'
-          } else {
-            showOAuthModal = false
-            onRefresh()
-          }
-        } catch (err) {
-          oauthError = err instanceof Error ? err.message : String(err)
-        }
-        return
-      }
-      if (providerId === 'iflow' && specialToken.trim()) {
-        // iFlow cookie mode (disamping OAuth authcode).
-        try {
-          const res = await api.iflowCookie(specialToken.trim())
-          if (!res || (res as { error?: string })?.error || !(res as { success?: boolean })?.success) {
             oauthError = (res as { error?: string })?.error || 'Authorization failed'
           } else {
             showOAuthModal = false
@@ -2353,17 +1767,7 @@
           </div>
         </div>
         <div class="flex gap-2">
-        {#if providerId === 'freebuff'}
-          <button
-            type="button"
-            onclick={startFreebuffFlow}
-            disabled={isAuthorizingFreebuff}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-[8px]"
-          >
-            <span class="material-symbols-outlined text-[18px]">vpn_key</span>
-            {isAuthorizingFreebuff ? 'Polling Authorization...' : 'Authorize Freebuff CLI'}
-          </button>
-        {:else if providerId === 'antigravity'}
+        {#if providerId === 'antigravity'}
           <button
             type="button"
             onclick={handleAddConnectionClick}
@@ -2514,41 +1918,6 @@
                       <span class="inline-flex items-center gap-1.5 rounded-full font-semibold bg-surface-2 text-text-muted px-2 py-0.5 text-[10px]">
                         {conn.authType === 'oauth' ? 'OAuth' : 'API Key'}
                       </span>
-                      <!-- Freebuff Session status badge -->
-                      {#if isFreebuff}
-                        {@const fbSess = freebuffSessions[conn.id]}
-                        {@const boundModel = fbSess?.currentModel || (specificData?.freebuffModel as string) || (specificData?.assignedModel as string)}
-                        {#if fbSess?.status === 'active' || boundModel}
-                          <span
-                            class="inline-flex items-center gap-1 rounded-full font-semibold px-2 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                            title="Active session bound to {boundModel}"
-                          >
-                            <span>🔒</span>
-                            <span class="font-mono">{boundModel}</span>
-                          </span>
-                        {:else if fbSess?.status === 'queued'}
-                          <span
-                            class="inline-flex items-center gap-1 rounded-full font-semibold px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-                            title="Waiting in queue"
-                          >
-                            <span>⏳</span> queued
-                          </span>
-                        {:else if fbSess?.status === 'banned'}
-                          <span
-                            class="inline-flex items-center gap-1 rounded-full font-semibold px-2 py-0.5 text-[10px] bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
-                            title="Account banned"
-                          >
-                            <span>🚫</span> banned
-                          </span>
-                        {:else if fbSess}
-                          <span
-                            class="inline-flex items-center gap-1 rounded-full font-normal px-2 py-0.5 text-[10px] bg-surface-2 text-text-muted border border-border/50"
-                            title="No active session held"
-                          >
-                            no session
-                          </span>
-                        {/if}
-                      {/if}
                       <!-- Proxy badge (upstream: green when the bound pool is active,
                            red when bound to a missing/inactive pool or a legacy proxy) -->
                       {#if proxyBadge.hasAnyProxy}
@@ -2657,18 +2026,6 @@
                       {/if}
                     </div>
                     {/if}
-                    <!-- Freebuff session manage button -->
-                    {#if isFreebuff}
-                    <button
-                      type="button"
-                      onclick={() => selectFreebuffAccount(conn.id)}
-                      class="flex flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 {targetFreebuffConn?.id === conn.id ? 'text-primary font-medium' : 'text-text-muted hover:text-primary'} cursor-pointer"
-                      title="Manage session for this account"
-                    >
-                      <span class="material-symbols-outlined text-[18px]">lock_clock</span>
-                      <span class="text-[10px] leading-tight">Session</span>
-                    </button>
-                    {/if}
 
                     <!-- Edit button -->
                     <button
@@ -2717,17 +2074,7 @@
     <!-- Bottom Add Button (upstream: compatible nodes add keys only via the details card) -->
     {#if !isCompatibleNode}
     <div class="mt-4 grid grid-cols-1 gap-2 sm:flex">
-      {#if providerId === 'freebuff'}
-        <button
-          type="button"
-          onclick={startFreebuffFlow}
-          disabled={isAuthorizingFreebuff}
-          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-7 px-3 text-xs rounded-[8px] w-full sm:w-auto"
-        >
-          <span class="material-symbols-outlined text-[18px]">vpn_key</span>
-          {isAuthorizingFreebuff ? 'Polling Authorization...' : 'Authorize Freebuff CLI'}
-        </button>
-      {:else if hasDualAuthModes}
+      {#if hasDualAuthModes}
         <button
           type="button"
           onclick={handleAddConnectionClick}
@@ -2918,37 +2265,12 @@
         </button>
       </div>
     {/if}
-    {#if isFreebuff}
-      <div class="mb-4">
-        <FreebuffSessionBanner
-          session={freebuffSession}
-          isLoading={isLoadingSession}
-          expiresInMin={sessionExpiresInMin}
-          onRefresh={loadFreebuffSession}
-          models={visibleModels.map((m) => ({ id: m.id, name: m.name }))}
-          onSwitch={switchFreebuffModel}
-          connections={providerConnections.map((c) => {
-            const specific = c.providerSpecificData as Record<string, any> | undefined
-            return {
-              id: c.id,
-              name: c.name || c.email || 'Freebuff Account',
-              isActive: c.isActive === 1,
-              currentModel: freebuffSessions[c.id]?.currentModel || (specific?.freebuffModel as string) || (specific?.assignedModel as string),
-              status: freebuffSessions[c.id]?.status,
-            }
-          })}
-          selectedConnectionId={targetFreebuffConn?.id}
-          onSelectConnection={selectFreebuffAccount}
-        />
-      </div>
-    {/if}
     <!-- Models flex-wrap list matching upstream -->
     <div class="flex flex-wrap gap-3">
       {#each visibleModels as model (model.id)}
         {@const fullModelId = `${storageAlias}/${model.id}`}
         {@const testStatus = modelTestStatuses[model.id]}
         {@const isTestingThis = testStatus === 'testing'}
-        {@const isSessionActive = checkIsActiveSession(model.id)}
         <div
           class="group min-w-0 max-w-full rounded-lg border px-3 py-2 {testStatus === 'ok' ? 'border-green-500/40' : testStatus === 'error' ? 'border-red-500/40' : 'border-border'} hover:bg-sidebar/50 transition-colors"
         >
@@ -2959,12 +2281,6 @@
                 <code class="max-w-[72vw] truncate rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px]">
                   {fullModelId}
                 </code>
-                {#if isSessionActive}
-                  <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Active Session
-                  </span>
-                {/if}
               </div>
               <span class="flex min-w-0 items-center text-[9px] gap-1 pl-1">
                 <span class="truncate text-[9px] italic text-text-muted/70">{model.name}</span>
@@ -3066,7 +2382,7 @@
         Add Model
       </button>
 
-      {#if (providerId === 'cline' || providerId === 'clinepass' || providerId === 'qoder' || providerId === 'qoder-cn') && providerConnections.some((c) => c.isActive !== 0)}
+      {#if providerId === 'qoder' && providerConnections.some((c) => c.isActive !== 0)}
         <button
           type="button"
           onclick={handleImportLiveCatalogModels}
@@ -3169,7 +2485,7 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         class="absolute inset-0 bg-black/50 backdrop-blur-[2px] fade-in"
-        onclick={() => { showOAuthModal = false; stopDevicePoll() }}
+        onclick={() => { showOAuthModal = false }}
         role="presentation"
       ></div>
     <div class="relative w-full bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] fade-in max-w-lg p-6">
@@ -3177,7 +2493,7 @@
         <h2 class="text-lg font-semibold text-text-main">Connect {providerName}</h2>
         <button
           type="button"
-          onclick={() => { showOAuthModal = false; stopDevicePoll() }}
+          onclick={() => { showOAuthModal = false }}
           class="p-1 rounded text-text-muted hover:text-text-main cursor-pointer"
         >
           <span class="material-symbols-outlined text-lg">close</span>
@@ -3187,78 +2503,23 @@
       <div class="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50 mb-4">
         <span class="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
         <span class="text-sm">
-          {providerId === 'freebuff'
-            ? 'Waiting for Freebuff authorization… (auto-polling active)'
-            : deviceUserCode
-              ? `Waiting for device authorization… (auto-check every ${deviceInterval}s)`
-              : 'Waiting for popup authorization…'}
+          {deviceUserCode
+            ? 'Waiting for device authorization…'
+            : 'Waiting for popup authorization…'}
         </span>
       </div>
 
       <div class="flex items-center gap-3 my-3">
         <div class="flex-1 h-px bg-border"></div>
         <span class="text-xs text-text-muted uppercase tracking-wider">
-          {providerId === 'freebuff'
-            ? 'Authorization link & manual check'
-            : isClineOAuth
-              ? 'Login di Cline, lalu paste callback'
-              : oauthAuthUrl
-                ? 'Or paste callback URL manually'
-                : 'Manual token import'}
+          {oauthAuthUrl
+            ? 'Or paste callback URL manually'
+            : 'Manual token import'}
         </span>
         <div class="flex-1 h-px bg-border"></div>
       </div>
 
       <div class="space-y-4">
-        {#if providerId === 'cursor'}
-          <div class="space-y-2 p-3 border border-border rounded-md bg-sidebar/50">
-            <p class="text-[11px] text-text-muted">Ambil dari <span class="font-mono">state.vscdb</span> Cursor IDE (<span class="font-mono">cursorAuth/accessToken</span> + <span class="font-mono">storage.serviceMachineId</span>):</p>
-            <input
-              bind:value={specialToken}
-              placeholder="Access token (cursorAuth/accessToken)"
-              class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
-            />
-            <input
-              bind:value={specialExtra}
-              placeholder="Machine ID (storage.serviceMachineId)"
-              class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
-            />
-            <button
-              type="button"
-              onclick={cursorAutoImportNow}
-              disabled={isConnecting}
-              class="w-full py-1.5 text-xs font-semibold rounded-[8px] bg-surface-2 hover:bg-surface-3 text-text-main border border-border disabled:opacity-50 cursor-pointer"
-            >
-              {isConnecting ? 'Reading…' : 'Auto-import dari Cursor di host ini'}
-            </button>
-          </div>
-        {/if}
-        {#if providerId === 'gitlab'}
-          <div class="space-y-2 p-3 border border-border rounded-md bg-sidebar/50">
-            <p class="text-[11px] text-text-muted">Atau pakai Personal Access Token (disamping login OAuth di atas):</p>
-            <input
-              bind:value={specialToken}
-              type="password"
-              placeholder="GitLab PAT (scope api, read_user)"
-              class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
-            />
-            <input
-              bind:value={specialBaseUrl}
-              placeholder="Base URL (default https://gitlab.com)"
-              class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
-            />
-          </div>
-        {/if}
-        {#if providerId === 'iflow'}
-          <div class="space-y-2 p-3 border border-border rounded-md bg-sidebar/50">
-            <p class="text-[11px] text-text-muted">Atau pakai cookie platform.iflow.cn (disamping login OAuth di atas):</p>
-            <input
-              bind:value={specialToken}
-              placeholder="Cookie (harus mengandung BXAuth=...)"
-              class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
-            />
-          </div>
-        {/if}
         {#if deviceUserCode}
           <div class="p-3 border border-border rounded-md bg-sidebar/50 text-center">
             <p class="text-[11px] text-text-muted mb-1">Masukkan kode ini di halaman login yang terbuka:</p>
@@ -3294,54 +2555,21 @@
         </div>
         {/if}
 
-        {#if providerId === 'gitlab'}
-          <div class="grid grid-cols-1 gap-2 p-3 border border-border rounded-md bg-sidebar/50 mb-1">
-            <p class="text-[11px] text-text-muted">GitLab self-hosted / OAuth app sendiri (opsional — default gitlab.com tanpa client):</p>
-            <input
-              bind:value={gitlabBaseUrl}
-              placeholder="Base URL (default https://gitlab.com)"
-              class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
-            />
-            <div class="grid grid-cols-2 gap-2">
-              <input
-                bind:value={gitlabClientId}
-                placeholder="OAuth Client ID"
-                class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
-              />
-              <input
-                bind:value={gitlabClientSecret}
-                type="password"
-                placeholder="OAuth Client Secret"
-                class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
-              />
-            </div>
-          </div>
-        {/if}
         <div>
           <p class="text-sm font-medium mb-1">
-            {providerId === 'freebuff'
-              ? 'Step 2: Selesaikan di browser / paste URL / Code / Token'
-              : isClineOAuth
-                ? 'Step 2: Paste the callback URL here'
-                : oauthAuthUrl
-                  ? 'Step 2: Paste the callback URL here'
-                  : 'Import token manual (belum ada login browser untuk provider ini)'}
+            {oauthAuthUrl
+              ? 'Step 2: Paste the callback URL here'
+              : 'Import token manual (belum ada login browser untuk provider ini)'}
           </p>
           <input
             bind:value={callbackInput}
-            placeholder={providerId === 'freebuff'
-              ? 'https://freebuff.com/onboard?auth_code=... atau paste authToken'
-              : `${dashboardCallback()}?code=...&state=...`}
+            placeholder={`${dashboardCallback()}?code=...&state=...`}
             class="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary font-mono"
           />
           <p class="text-[11px] text-text-muted mt-1">
-            {providerId === 'freebuff'
-              ? 'Jika browser diarahkan ke /onboard, selesaikan onboarding di tab Freebuff lalu paste URL di atas atau langsung klik Check & Connect.'
-              : isClineOAuth
-                ? 'Login di tab Cline yang terbuka — koneksi tersambung otomatis. Kalau gagal, copy URL redirect (berisi code=...) ke sini dan klik Connect.'
-                : oauthAuthUrl
-                  ? 'Selesaikan login di tab browser — koneksi tersambung otomatis. Kalau gagal, copy full URL dari browser ke sini.'
-                  : 'Tempel access token di sini lalu klik Connect.'}
+            {oauthAuthUrl
+              ? 'Selesaikan login di tab browser — koneksi tersambung otomatis. Kalau gagal, copy full URL dari browser ke sini.'
+              : 'Tempel access token di sini lalu klik Connect.'}
           </p>
         </div>
 
@@ -3353,27 +2581,17 @@
           <button
             type="button"
             onclick={() => {
-              if (deviceUserCode) {
-                pollDeviceOnce()
-              } else {
-                submitManualCallback()
-              }
+              submitManualCallback()
             }}
             disabled={isConnecting}
             class="flex-1 py-1.5 text-xs font-semibold rounded-[8px] bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:opacity-50 cursor-pointer"
           >
-            {isConnecting ? 'Checking…' : deviceUserCode ? 'Check now' : providerId === 'freebuff' ? 'Check & Connect' : 'Connect'}
+            {isConnecting ? 'Checking…' : 'Connect'}
           </button>
           <button
             type="button"
             onclick={() => {
               showOAuthModal = false
-              stopDevicePoll()
-              if (freebuffPollTimer) {
-                clearInterval(freebuffPollTimer)
-                freebuffPollTimer = null
-              }
-              isAuthorizingFreebuff = false
             }}
             class="flex-1 py-1.5 text-xs font-semibold rounded-[8px] bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
           >

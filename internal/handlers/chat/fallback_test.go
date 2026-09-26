@@ -126,7 +126,7 @@ func TestTryForwardWithConnection_NoAPIKey(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	err := h.tryForwardWithConnection(forwardRequestParams{
-		Ctx: context.Background(), W: rec, Provider: "deepseek", Model: "deepseek-chat",
+		Ctx: context.Background(), W: rec, Provider: "nvidia", Model: "minimaxai/minimax-m2.7",
 		ConnectionID: "conn-x", ConnData: &ConnectionData{}, Body: []byte(`{}`),
 		IsStream: false, TranslateResponse: false, Endpoint: "/v1/chat/completions",
 	})

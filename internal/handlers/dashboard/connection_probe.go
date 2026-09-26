@@ -14,7 +14,6 @@ import (
 	"9router/proxy/internal/handlerutil"
 	"9router/proxy/internal/models"
 	"9router/proxy/internal/providers"
-	"9router/proxy/internal/proxy/executor"
 	"9router/proxy/internal/proxy/oauth"
 )
 
@@ -39,11 +38,6 @@ const (
 
 	connectionAnthropicProbeModel = "claude-3-haiku-20240307"
 	codexCLIVersion               = "0.154.0"
-	grokCLIProbeURL               = "https://cli-chat-proxy.grok.com/v1/user"
-	grokCLIProbeUA                = "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)"
-	kimchiProbeURL                = "https://api.cast.ai/v1/llm/openai/supported-providers"
-	kilocodeProbeURL              = "https://api.kilo.ai/api/profile"
-	clineProbeURL                 = "https://api.cline.bot/api/v1/users/me"
 	googleUserinfoURL             = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json"
 	codexProbeURL                 = "https://chatgpt.com/backend-api/codex/responses"
 	cloudCodeAssistProbeURL       = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
@@ -152,10 +146,6 @@ var oauthProbeConfigs = map[string]oauthProbeConfig{
 		acceptStatuses: []int{http.StatusBadRequest},
 		refreshable:    true,
 	},
-	"gemini-cli": {
-		url: googleUserinfoURL, method: http.MethodGet,
-		authHeader: "Authorization", authPrefix: "Bearer ", refreshable: true,
-	},
 	"antigravity": {
 		url: googleUserinfoURL, method: http.MethodGet,
 		authHeader: "Authorization", authPrefix: "Bearer ", refreshable: true,
@@ -165,67 +155,8 @@ var oauthProbeConfigs = map[string]oauthProbeConfig{
 		authHeader: "Authorization", authPrefix: "Bearer ",
 		extraHeaders: map[string]string{"User-Agent": "9Router", "Accept": "application/vnd.github+json"},
 	},
-	"iflow": {
-		buildURL: func(token string) string {
-			return "https://iflow.cn/api/oauth/getUserInfo?accessToken=" + url.QueryEscape(token)
-		},
-		method: http.MethodGet, noAuth: true,
-	},
-	"kiro":           {checkExpiry: true, refreshable: true},
-	"qoder":          {url: "https://openapi.qoder.sh/api/v1/userinfo", method: http.MethodGet, authHeader: "Authorization", authPrefix: "Bearer "},
-	"qoder-cn":       {url: "https://openapi.qoder.com.cn/api/v1/userinfo", method: http.MethodGet, authHeader: "Authorization", authPrefix: "Bearer "},
-	"kimi":           {checkExpiry: true, refreshable: true},
-	"kimi-coding":    {checkExpiry: true, refreshable: true},
-	"cursor":         {tokenExists: true},
-	"kilocode":       {url: kilocodeProbeURL, method: http.MethodGet, authHeader: "Authorization", authPrefix: "Bearer "},
-	"cline":          {refreshable: true},
-	"clinepass":      {refreshable: true},
-	"freebuff":       {},
-	"gitlab":         {url: "https://gitlab.com/api/v4/user", method: http.MethodGet, authHeader: "Authorization", authPrefix: "Bearer "},
 	"codebuddy-cn":   {tokenExists: true},
 	"codebuddy-intl": {tokenExists: true},
-	"zed":            {tokenExists: true},
-	"windsurf":       {tokenExists: true},
-	"trae":           {tokenExists: true},
-	"devin":          {tokenExists: true},
-	"devin-cli":      {tokenExists: true},
-	"kimchi": {
-		url: kimchiProbeURL, method: http.MethodGet,
-		authHeader: "Authorization", authPrefix: "Bearer ",
-		extraHeaders: map[string]string{"Accept": "application/json", "User-Agent": "kimchi/0.1.40"},
-	},
-	"grok-cli": {
-		url: grokCLIProbeURL, method: http.MethodGet,
-		authHeader: "Authorization", authPrefix: "Bearer ",
-		extraHeaders: map[string]string{
-			"Accept":                   "application/json",
-			"User-Agent":               grokCLIProbeUA,
-			"x-xai-token-auth":         "xai-grok-cli",
-			"x-grok-client-identifier": "grok-pager",
-			"x-grok-client-version":    "0.2.93",
-		},
-		refreshable:    true,
-		acceptStatuses: []int{http.StatusPaymentRequired},
-		softFailMessage: map[int]string{
-			http.StatusPaymentRequired: "Connected, but Grok Build credits are exhausted (spending limit). Add credits or upgrade SuperGrok.",
-		},
-	},
-	"xai": {
-		url: grokCLIProbeURL, method: http.MethodGet,
-		authHeader: "Authorization", authPrefix: "Bearer ",
-		extraHeaders: map[string]string{
-			"Accept":                   "application/json",
-			"User-Agent":               grokCLIProbeUA,
-			"x-xai-token-auth":         "xai-grok-cli",
-			"x-grok-client-identifier": "grok-pager",
-			"x-grok-client-version":    "0.2.93",
-		},
-		refreshable:    true,
-		acceptStatuses: []int{http.StatusPaymentRequired},
-		softFailMessage: map[int]string{
-			http.StatusPaymentRequired: "Connected, but Grok Build credits are exhausted (spending limit). Add credits or upgrade SuperGrok.",
-		},
-	},
 }
 
 // HandleTestConnection handles POST /api/providers/{id}/test and
@@ -543,7 +474,7 @@ func (h *DashboardHandler) probeOAuthConnection(ctx context.Context, conn *model
 	}
 
 	switch provider {
-	case "gemini-cli", "antigravity":
+	case "antigravity":
 		attempt := probeCloudCodeAssist(ctx, client, provider, accessToken)
 		if attempt.valid {
 			return probeOutcome{valid: true, refreshed: refreshed, tokens: tokens}
@@ -560,10 +491,6 @@ func (h *DashboardHandler) probeOAuthConnection(ctx context.Context, conn *model
 			return probeOutcome{message: retry.message, refreshed: true, tokens: retryTokens}
 		}
 		return probeOutcome{message: attempt.message, refreshed: refreshed, tokens: tokens}
-	case "cline", "clinepass":
-		return h.probeCline(ctx, data, client, accessToken, refreshed, tokens)
-	case "freebuff":
-		return h.probeFreebuff(ctx, conn, data, client)
 	}
 
 	return h.probeOAuthEndpoint(ctx, provider, cfg, client, accessToken, refreshed, tokens, data)
@@ -586,115 +513,6 @@ func (h *DashboardHandler) probeOAuthEndpoint(ctx context.Context, provider stri
 		return probeOutcome{message: "Token invalid or revoked"}
 	}
 	return probeOutcome{message: attempt.message, refreshed: refreshed, tokens: tokens}
-}
-
-// probeCline ports the cline branch: probe users/me, refresh on 401, retry.
-func (h *DashboardHandler) probeCline(ctx context.Context, data connectionProbeData, client *http.Client, accessToken string, refreshed bool, tokens *oauth.TokenResult) probeOutcome {
-	try := func(token string) probeOutcome {
-		// JWT-only workos: prefix (parity with upstream
-		// open-sse/shared/clineAuth.js): ClinePass API keys ride plain.
-		authVal := strings.TrimSpace(token)
-		if !strings.HasPrefix(authVal, "workos:") && isClineWorkOSJWT(authVal) {
-			authVal = "workos:" + authVal
-		}
-		status, _, err := connectionProbeDo(ctx, client, http.MethodGet, clineProbeURL, map[string]string{
-			"Authorization": "Bearer " + authVal,
-			"Accept":        "application/json",
-		}, nil)
-		if err != nil {
-			return probeOutcome{message: err.Error()}
-		}
-		switch {
-		case status >= 200 && status < 300:
-			return probeOutcome{valid: true}
-		case status == http.StatusUnauthorized:
-			return probeOutcome{message: "Token invalid or revoked", refreshed: refreshed, tokens: tokens}
-		case status == http.StatusForbidden:
-			return probeOutcome{message: "Access denied", refreshed: refreshed, tokens: tokens}
-		default:
-			return probeOutcome{message: fmt.Sprintf("API returned %d", status), refreshed: refreshed, tokens: tokens}
-		}
-	}
-
-	initial := try(accessToken)
-	if initial.valid || initial.message != "Token invalid or revoked" || data.RefreshToken == "" {
-		return initial
-	}
-	retryTokens := h.refreshConnectionToken(ctx, "cline", data, client)
-	if retryTokens == nil || retryTokens.AccessToken == "" {
-		return probeOutcome{message: "Token invalid or revoked"}
-	}
-	out := try(retryTokens.AccessToken)
-	out.refreshed = true
-	out.tokens = retryTokens
-	return out
-}
-
-// isClineWorkOSJWT reports whether token looks like a Cline OAuth WorkOS JWT
-// (base64url "eyJ…" header + dot). Non-JWT ClinePass API keys ride plain
-// Bearer (upstream parity: open-sse/shared/clineAuth.js getClineAccessToken).
-func isClineWorkOSJWT(token string) bool {
-	if strings.HasPrefix(token, "workos:") || !strings.HasPrefix(token, "eyJ") {
-		return false
-	}
-	dot := strings.IndexByte(token, '.')
-	if dot <= 3 {
-		return false
-	}
-	for i := 0; i < dot; i++ {
-		c := token[i]
-		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
-			return false
-		}
-	}
-	return true
-}
-
-func (h *DashboardHandler) probeFreebuff(ctx context.Context, conn *models.ProviderConnection, data connectionProbeData, client *http.Client) probeOutcome {
-	token := data.AccessToken
-	if token == "" {
-		token = data.APIKey
-	}
-	if token == "" {
-		token = psdStr(data.ProviderSpecificData, "authToken")
-	}
-	if token == "" {
-		return probeOutcome{message: "No access token"}
-	}
-
-	reqURL := "https://www.codebuff.com/api/v1/freebuff/session"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return probeOutcome{message: fmt.Sprintf("create probe request failed: %v", err)}
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "codebuff-cli/0.0.138")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := executor.DoFreebuffHTTP(ctx, client, req)
-	if err != nil {
-		return probeOutcome{message: fmt.Sprintf("connection failed: %v", err)}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound {
-		return probeOutcome{valid: true}
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		return probeOutcome{message: "Invalid token or expired"}
-	}
-	if resp.StatusCode == http.StatusForbidden {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-		var refusal struct {
-			Status string `json:"status"`
-		}
-		_ = json.Unmarshal(bytes.TrimSpace(body), &refusal)
-		if strings.ToLower(strings.TrimSpace(refusal.Status)) == "banned" {
-			return probeOutcome{message: "Account banned"}
-		}
-		return probeOutcome{valid: true, message: "Region flagged: country not allowed"}
-	}
-	return probeOutcome{valid: true}
 }
 
 // oauthProbeAttempt is one classified probe answer.

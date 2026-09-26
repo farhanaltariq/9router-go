@@ -57,24 +57,16 @@
   let providerWebsite = $derived(catalogItem?.website || '')
   let isCookie = $derived(providerAuthType === 'cookie' || catalogItem?.category === 'webCookie')
   let isOllamaLocal = $derived(providerId === 'ollama-local')
-  let isXaiApiKey = $derived(providerId === 'xai' && !isCookie)
-  let isAzure = $derived(providerId === 'azure')
   let isCloudflareAi = $derived(providerId === 'cloudflare-ai')
   let providerRegions = $derived(catalogItem?.regions || null)
 
   let credentialLabel = $derived(
-    isCookie ? 'Cookie Value' : providerId === 'qoder' ? 'Personal Access Token (PAT)' : 'API Key'
+    isCookie ? 'Cookie Value' : 'API Key'
   )
   let credentialPlaceholder = $derived(
     isCookie
-      ? providerId === 'grok-web'
-        ? 'sso=xxxxx... or just the raw value'
-        : 'eyJhbGciOi...'
-      : isXaiApiKey
-        ? 'xai-...'
-        : providerId === 'qoder'
-          ? 'pt-...'
-          : ''
+      ? 'eyJhbGciOi...'
+      : ''
   )
   let modalTitle = $derived(`Add ${providerName || providerId} ${credentialLabel}`)
 
@@ -86,12 +78,6 @@
   let formPriority = $state(1)
   let formProxyPoolId = $state(NONE_PROXY_POOL_VALUE)
   let formOllamaHostUrl = $state('')
-  let azureData = $state({
-    azureEndpoint: '',
-    apiVersion: '2024-10-01-preview',
-    deployment: '',
-    organization: '',
-  })
   let cloudflareAccountId = $state('')
   let region = $state('')
 
@@ -108,9 +94,7 @@
   let bulkPlaceholder = $derived(
     isCloudflareAi
       ? 'name1|sk-key1|acc123456\nname2|sk-key2|def789012\nsk-key-only-auto-named'
-      : providerId === 'qoder'
-        ? 'name1|pt-xxxxx\nname2|pt-yyyyy\npt-only-auto-named'
-        : BULK_PLACEHOLDER
+      : BULK_PLACEHOLDER
   )
 
   $effect(() => {
@@ -137,7 +121,6 @@
     formPriority = 1
     formProxyPoolId = NONE_PROXY_POOL_VALUE
     formOllamaHostUrl = ''
-    azureData = { azureEndpoint: '', apiVersion: '2024-10-01-preview', deployment: '', organization: '' }
     cloudflareAccountId = ''
     region = catalogItem?.defaultRegion || catalogItem?.regions?.[0]?.id || ''
     validating = false
@@ -151,14 +134,6 @@
   function buildProviderSpecificData(): Record<string, unknown> | undefined {
     if (isOllamaLocal && formOllamaHostUrl.trim()) {
       return { baseUrl: formOllamaHostUrl.trim() }
-    }
-    if (isAzure) {
-      return {
-        azureEndpoint: azureData.azureEndpoint,
-        apiVersion: azureData.apiVersion,
-        deployment: azureData.deployment,
-        organization: azureData.organization,
-      }
     }
     if (isCloudflareAi) {
       return { accountId: cloudflareAccountId }
@@ -212,7 +187,6 @@
     saving ||
       (!isOllamaLocal && (!formName.trim() || !formApiKey.trim())) ||
       (isCompatible && !formDefaultModel.trim()) ||
-      (isAzure && (!azureData.azureEndpoint || !azureData.deployment || !azureData.organization)) ||
       (isCloudflareAi && !cloudflareAccountId.trim())
   )
 
@@ -338,8 +312,6 @@
             <p class="text-xs text-text-muted">
               {#if isCloudflareAi}
                 One key per line. Format: <code>name|apiKey|accountId</code> or just <code>apiKey</code> (auto-named by index).
-              {:else if providerId === 'qoder'}
-                One PAT per line. Format: <code>name|pt-...</code> or just <code>pt-...</code> (auto-named by index).
               {:else}
                 One key per line. Format: <code>name|apiKey</code> or just <code>apiKey</code> (auto-named by index).
               {/if}
@@ -513,54 +485,6 @@
                     >dash.cloudflare.com</a
                   >
                 </p>
-              </div>
-            {/if}
-
-            {#if isAzure}
-              <div class="bg-sidebar/50 p-4 rounded-lg border border-accent/20">
-                <h3 class="font-semibold mb-3 text-sm">Azure OpenAI Configuration</h3>
-                <div class="flex flex-col gap-3">
-                  <div>
-                    <label for="azureEndpoint" class={labelCls}>Azure Endpoint</label>
-                    <input
-                      id="azureEndpoint"
-                      type="text"
-                      bind:value={azureData.azureEndpoint}
-                      placeholder="https://your-resource.openai.azure.com"
-                      class="{inputCls} font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label for="azureDeployment" class={labelCls}>Deployment Name</label>
-                    <input
-                      id="azureDeployment"
-                      type="text"
-                      bind:value={azureData.deployment}
-                      placeholder="gpt-4"
-                      class="{inputCls} font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label for="azureApiVersion" class={labelCls}>API Version</label>
-                    <input
-                      id="azureApiVersion"
-                      type="text"
-                      bind:value={azureData.apiVersion}
-                      placeholder="2024-10-01-preview"
-                      class="{inputCls} font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label for="azureOrganization" class={labelCls}>Organization</label>
-                    <input
-                      id="azureOrganization"
-                      type="text"
-                      bind:value={azureData.organization}
-                      placeholder="Organization ID"
-                      class="{inputCls} font-mono"
-                    />
-                  </div>
-                </div>
               </div>
             {/if}
 

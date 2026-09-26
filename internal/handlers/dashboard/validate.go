@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	crand "crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	json "encoding/json/v2"
 	"fmt"
@@ -13,14 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"9router/proxy/internal/db"
-	"9router/proxy/internal/models"
 	"9router/proxy/internal/handlerutil"
+	"9router/proxy/internal/models"
 	"9router/proxy/internal/providers"
-	"9router/proxy/internal/proxy/executor"
 )
+
 // validateProbeTimeout mirrors upstream's AbortSignal.timeout(8000) on probes.
 const validateProbeTimeout = 8 * time.Second
 
@@ -386,6 +383,7 @@ func (h *DashboardHandler) validateProviderNodeConnection(
 		"error":     errVal,
 	})
 }
+
 // (GET /models, falling back to a minimal chat request).
 func validateProviderKey(ctx context.Context, provider string, cfg providers.ProviderConfig, apiKey string, psd map[string]any) validateOutcome {
 	if cfg.NoAuth {
@@ -395,25 +393,6 @@ func validateProviderKey(ctx context.Context, provider string, cfg providers.Pro
 	switch provider {
 	case "cloudflare-ai":
 		return validateCloudflareAI(ctx, cfg, apiKey, psd)
-	case "azure":
-		return validateAzure(ctx, apiKey, psd)
-	case "ollama-local":
-		return validateOllamaLocal(ctx, psd)
-	case "gemini":
-		status, _, err := validateProbeDo(ctx, http.MethodGet,
-			"https://generativelanguage.googleapis.com/v1/models?key="+apiKey, nil, nil)
-		if err != nil {
-			return validateOutcome{supported: true, message: err.Error()}
-		}
-		return validateOutcome{valid: status == http.StatusOK, supported: true}
-	case "xiaomi-tokenplan":
-		return validateXiaomiTokenplan(ctx, apiKey, psd)
-	case "grok-web":
-		return validateGrokWeb(ctx, apiKey)
-	case "perplexity-web":
-		return validatePerplexityWeb(ctx, apiKey)
-	case "qoder":
-		return validateQoder(ctx, apiKey, psd)
 	}
 
 	if isAnthropicProbe(cfg) {
@@ -529,342 +508,6 @@ func cloudflareAccountFromBaseURL(baseURL string) string {
 		return rest[:end]
 	}
 	return rest
-}
-
-func validateAzure(ctx context.Context, apiKey string, psd map[string]any) validateOutcome {
-	endpoint := strings.TrimSuffix(strings.TrimSpace(psdStr(psd, "azureEndpoint")), "/")
-	deployment := psdStr(psd, "deployment")
-	if deployment == "" {
-		deployment = "gpt-4"
-	}
-	apiVersion := psdStr(psd, "apiVersion")
-	if apiVersion == "" {
-		apiVersion = "2024-10-01-preview"
-	}
-	if endpoint == "" {
-		return validateOutcome{supported: true, message: "Invalid API key or Azure configuration"}
-	}
-	headers := map[string]string{
-		"api-key":      apiKey,
-		"Content-Type": "application/json",
-	}
-	if org := psdStr(psd, "organization"); org != "" {
-		headers["OpenAI-Organization"] = org
-	}
-	payload, _ := json.Marshal(map[string]any{
-		"messages":   []map[string]string{{"role": "user", "content": "test"}},
-		"max_tokens": 1,
-	})
-	url := endpoint + "/openai/deployments/" + deployment + "/chat/completions?api-version=" + apiVersion
-	status, _, err := validateProbeDo(ctx, http.MethodPost, url, headers, payload)
-	if err != nil {
-		return validateOutcome{supported: true, message: err.Error()}
-	}
-	valid := status != http.StatusUnauthorized && status != http.StatusForbidden
-	out := validateOutcome{valid: valid, supported: true}
-	if !valid {
-		out.message = "Invalid API key or Azure configuration"
-	}
-	return out
-}
-
-func validateOllamaLocal(ctx context.Context, psd map[string]any) validateOutcome {
-	host := strings.TrimSuffix(strings.TrimSpace(psdStr(psd, "baseUrl")), "/")
-	if host == "" {
-		host = "http://localhost:11434"
-	}
-	status, _, err := validateProbeDo(ctx, http.MethodGet, host+"/api/tags", nil, nil)
-	if err != nil {
-		return validateOutcome{supported: true, message: err.Error()}
-	}
-	out := validateOutcome{valid: status == http.StatusOK, supported: true}
-	if !out.valid {
-		out.message = "Could not reach Ollama at " + host
-	}
-	return out
-}
-
-// validateXiaomiTokenplanBase maps Token Plan regions to their API base URLs.
-var validateXiaomiTokenplanBase = map[string]string{
-	"sgp": "https://token-plan-sgp.xiaomimimo.com/v1",
-	"cn":  "https://token-plan-cn.xiaomimimo.com/v1",
-	"ams": "https://token-plan-ams.xiaomimimo.com/v1",
-}
-
-func validateXiaomiTokenplan(ctx context.Context, apiKey string, psd map[string]any) validateOutcome {
-	region := psdStr(psd, "region")
-	base := validateXiaomiTokenplanBase[region]
-	if base == "" {
-		base = validateXiaomiTokenplanBase["sgp"]
-	}
-	status, _, err := validateProbeDo(ctx, http.MethodGet, base+"/models", map[string]string{
-		"Authorization": "Bearer " + apiKey,
-	}, nil)
-	if err != nil {
-		return validateOutcome{supported: true, message: err.Error()}
-	}
-	// /models answers 403 for valid keys without list permission — only 401 is fatal.
-	return validateOutcome{valid: status != http.StatusUnauthorized, supported: true}
-}
-
-// --- grok-web: SSO cookie probe (upstream `case "grok-web"`) ---
-
-const (
-	grokWebProbeURL = "https://grok.com/rest/app-chat/conversations/new"
-	grokWebUA       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-)
-
-// GrokWebStatsigID is the fixed x-statsig-id grok.com expects from a browser
-// session (upstream base64s the same literal).
-var grokWebStatsigID = base64.StdEncoding.EncodeToString([]byte("e:TypeError: Cannot read properties of null (reading 'children')"))
-
-func validateGrokWeb(ctx context.Context, apiKey string) validateOutcome {
-	token := strings.TrimPrefix(strings.TrimSpace(apiKey), "sso=")
-
-	traceID := validateRandomHex(16)
-	spanID := validateRandomHex(8)
-	payload, _ := json.Marshal(map[string]any{
-		"temporary":                   true,
-		"modelName":                   "grok-4",
-		"modelMode":                   "MODEL_MODE_GROK_4",
-		"message":                     "ping",
-		"fileAttachments":             []any{},
-		"imageAttachments":            []any{},
-		"disableSearch":               false,
-		"enableImageGeneration":       false,
-		"returnImageBytes":            false,
-		"returnRawGrokInXaiRequest":   false,
-		"enableImageStreaming":        false,
-		"imageGenerationCount":        0,
-		"forceConcise":                false,
-		"toolOverrides":               map[string]any{},
-		"enableSideBySide":            true,
-		"sendFinalMetadata":           true,
-		"isReasoning":                 false,
-		"disableTextFollowUps":        true,
-		"disableMemory":               true,
-		"forceSideBySide":             false,
-		"isAsyncChat":                 false,
-		"disableSelfHarmShortCircuit": false,
-	})
-	headers := map[string]string{
-		"Accept":             "*/*",
-		"Accept-Encoding":    "gzip, deflate, br, zstd",
-		"Accept-Language":    "en-US,en;q=0.9",
-		"Cache-Control":      "no-cache",
-		"Content-Type":       "application/json",
-		"Cookie":             "sso=" + token,
-		"Origin":             "https://grok.com",
-		"Pragma":             "no-cache",
-		"Referer":            "https://grok.com/",
-		"Sec-Ch-Ua":          `"Google Chrome";v="136", "Chromium";v="136", "Not(A:Brand";v="24"`,
-		"Sec-Ch-Ua-Mobile":   "?0",
-		"Sec-Ch-Ua-Platform": `"macOS"`,
-		"Sec-Fetch-Dest":     "empty",
-		"Sec-Fetch-Mode":     "cors",
-		"Sec-Fetch-Site":     "same-origin",
-		"User-Agent":         grokWebUA,
-		"x-statsig-id":       grokWebStatsigID,
-		"x-xai-request-id":   uuid.New().String(),
-		"traceparent":        "00-" + traceID + "-" + spanID + "-00",
-	}
-	status, _, err := validateProbeDo(ctx, http.MethodPost, grokWebProbeURL, headers, payload)
-	if err != nil {
-		return validateOutcome{supported: true, message: err.Error()}
-	}
-	// Any non-401/403 answer (200, 400, 429) means the cookie was accepted.
-	if status == http.StatusUnauthorized || status == http.StatusForbidden {
-		return validateOutcome{supported: true, message: "Invalid SSO cookie — re-paste from grok.com DevTools → Cookies → sso"}
-	}
-	return validateOutcome{valid: true, supported: true}
-}
-
-// --- perplexity-web: session cookie probe (upstream `case "perplexity-web"`) ---
-
-const (
-	perplexityWebProbeURL = "https://www.perplexity.ai/rest/sse/perplexity_ask"
-	perplexityWebCookie   = "__Secure-next-auth.session-token"
-)
-
-func validatePerplexityWeb(ctx context.Context, apiKey string) validateOutcome {
-	sessionToken := strings.TrimPrefix(strings.TrimSpace(apiKey), perplexityWebCookie+"=")
-	tz := time.Now().Location().String()
-	payload, _ := json.Marshal(map[string]any{
-		"query_str": "ping",
-		"params": map[string]any{
-			"query_str":             "ping",
-			"search_focus":          "internet",
-			"mode":                  "concise",
-			"model_preference":      "pplx_pro",
-			"sources":               []string{"web"},
-			"attachments":           []any{},
-			"frontend_uuid":         uuid.New().String(),
-			"frontend_context_uuid": uuid.New().String(),
-			"version":               "2.18",
-			"language":              "en-US",
-			"timezone":              tz,
-			"search_recency_filter": nil,
-			"is_incognito":          true,
-			"use_schematized_api":   true,
-			"last_backend_uuid":     nil,
-		},
-	})
-	headers := map[string]string{
-		"Content-Type":     "application/json",
-		"Accept":           "text/event-stream",
-		"Origin":           "https://www.perplexity.ai",
-		"Referer":          "https://www.perplexity.ai/",
-		"User-Agent":       grokWebUA,
-		"X-App-ApiClient":  "default",
-		"X-App-ApiVersion": "2.18",
-		"Cookie":           perplexityWebCookie + "=" + sessionToken,
-	}
-	status, _, err := validateProbeDo(ctx, http.MethodPost, perplexityWebProbeURL, headers, payload)
-	if err != nil {
-		return validateOutcome{supported: true, message: err.Error()}
-	}
-	if status == http.StatusUnauthorized || status == http.StatusForbidden {
-		return validateOutcome{supported: true, message: "Invalid session cookie — re-paste __Secure-next-auth.session-token from perplexity.ai"}
-	}
-	return validateOutcome{valid: true, supported: true}
-}
-
-// --- qoder: PAT → job token → COSY-signed model list (upstream `case "qoder"`) ---
-
-const (
-	qoderJobTokenExchangeURL = "https://openapi.qoder.sh/api/v1/jobToken/exchange"
-	qoderUserinfoURL         = "https://openapi.qoder.sh/api/v1/userinfo"
-	qoderModelListURLBase    = "https://api3.qoder.sh/algo/api/v2/model/list"
-	// Job-token traffic is rejected by api3 ("Login expired" 403) — the official
-	// qodercli serves it from api2 instead.
-	qoderModelListURLBaseAlt = "https://api2.qoder.sh/algo/api/v2/model/list"
-	qoderProbeUserAgent      = "qodercli/1.0.0"
-)
-
-func isQoderPAT(token string) bool { return strings.HasPrefix(token, "pt-") }
-
-func validateQoder(ctx context.Context, apiKey string, psd map[string]any) validateOutcome {
-	token := strings.TrimSpace(apiKey)
-	if token == "" {
-		token = psdStr(psd, "accessToken")
-	}
-	if token == "" {
-		return validateOutcome{supported: true, message: "Qoder credential is empty"}
-	}
-	userID := psdStr(psd, "userId", "user_id", "id")
-
-	if isQoderPAT(token) {
-		// A PAT cannot sign COSY requests — exchange it for a job token first.
-		jobToken, err := exchangeQoderJobToken(ctx, token)
-		if err != nil {
-			return validateOutcome{supported: true, message: err.Error()}
-		}
-		token = jobToken
-		if userID == "" {
-			userID = fetchQoderUserID(ctx, jobToken)
-		}
-	}
-	if userID == "" {
-		// COSY signing needs a user id; without it the model list cannot be asked for.
-		return validateOutcome{supported: true, message: "Qoder user ID missing — re-login or paste a PAT"}
-	}
-
-	modelListURL := qoderModelListURLBase
-	if strings.HasPrefix(token, "jt-") {
-		modelListURL = qoderModelListURLBaseAlt
-	}
-	headers, err := executor.BuildQoderCosyHeaders(nil, modelListURL, userID, token)
-	if err != nil {
-		return validateOutcome{supported: true, message: err.Error()}
-	}
-	headers["Accept"] = "application/json"
-	headers["Accept-Encoding"] = "identity"
-
-	status, body, err := validateProbeDo(ctx, http.MethodGet, modelListURL, headers, nil)
-	if err != nil {
-		return validateOutcome{supported: true, message: err.Error()}
-	}
-	if status < 200 || status >= 300 {
-		return validateOutcome{supported: true, message: fmt.Sprintf("Qoder model list returned %d", status)}
-	}
-	if countQoderCatalogModels(body) == 0 {
-		return validateOutcome{supported: true, message: "Qoder returned no models for this credential"}
-	}
-	return validateOutcome{valid: true, supported: true}
-}
-
-// exchangeQoderJobToken trades a PAT (pt-...) for a short-lived job token
-// (jt-...). Plain JSON POST, not COSY-signed (upstream exchangeJobToken).
-func exchangeQoderJobToken(ctx context.Context, pat string) (string, error) {
-	payload, _ := json.Marshal(map[string]string{"personal_token": pat})
-	status, body, err := validateProbeDo(ctx, http.MethodPost, qoderJobTokenExchangeURL, map[string]string{
-		"Content-Type":    "application/json",
-		"Accept":          "application/json",
-		"User-Agent":      qoderProbeUserAgent,
-		"Cosy-Version":    "1.0.0",
-		"Cosy-ClientType": "5",
-	}, payload)
-	if err != nil {
-		return "", fmt.Errorf("qoder PAT exchange failed: %w", err)
-	}
-	if status < 200 || status >= 300 {
-		return "", fmt.Errorf("qoder PAT exchange failed: %d %s", status, validateTruncate(string(body), 200))
-	}
-	var out map[string]any
-	if err := json.Unmarshal(body, &out); err != nil {
-		return "", fmt.Errorf("qoder PAT exchange returned non-JSON")
-	}
-	token, _ := out["token"].(string)
-	if token == "" {
-		return "", fmt.Errorf("qoder PAT exchange returned no job token")
-	}
-	return token, nil
-}
-
-// fetchQoderUserID resolves the userId a job token belongs to. Best-effort:
-// upstream returns "" on any failure and callers fall back to the stored id.
-func fetchQoderUserID(ctx context.Context, jobToken string) string {
-	status, body, err := validateProbeDo(ctx, http.MethodGet, qoderUserinfoURL, map[string]string{
-		"Authorization": "Bearer " + jobToken,
-		"Accept":        "application/json",
-		"User-Agent":    qoderProbeUserAgent,
-	}, nil)
-	if err != nil || status < 200 || status >= 300 {
-		return ""
-	}
-	var out map[string]any
-	if err := json.Unmarshal(body, &out); err != nil {
-		return ""
-	}
-	for _, key := range []string{"id", "userId", "user_id"} {
-		if v, ok := out[key].(string); ok && v != "" {
-			return v
-		}
-	}
-	return ""
-}
-
-// countQoderCatalogModels counts the routable entries of a /algo/api/v2/model/list
-// answer ({chat:[{key, enable}]}), mirroring upstream's models.length filter.
-func countQoderCatalogModels(body []byte) int {
-	var out struct {
-		Chat []map[string]any `json:"chat"`
-	}
-	if err := json.Unmarshal(body, &out); err != nil {
-		return 0
-	}
-	count := 0
-	for _, entry := range out.Chat {
-		key, _ := entry["key"].(string)
-		if key == "" {
-			continue
-		}
-		if enable, ok := entry["enable"].(bool); ok && !enable {
-			continue
-		}
-		count++
-	}
-	return count
 }
 
 func validateRandomHex(n int) string {

@@ -145,16 +145,16 @@ func TestResolveModel_ProviderAlias(t *testing.T) {
 	repo := db.NewRepo(database)
 	handler := NewChatHandler(repo)
 
-	// "ds" is an alias for "deepseek"
-	info, err := handler.resolveModel("ds/deepseek-chat")
+	// "nv" is an alias for "nvidia"
+	info, err := handler.resolveModel("nv/nemotron-3-ultra-550b-a55b")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if info.Provider != "deepseek" {
-		t.Errorf("expected provider 'deepseek', got '%s'", info.Provider)
+	if info.Provider != "nvidia" {
+		t.Errorf("expected provider 'nvidia', got '%s'", info.Provider)
 	}
-	if info.Model != "deepseek-chat" {
-		t.Errorf("expected model 'deepseek-chat', got '%s'", info.Model)
+	if info.Model != "nemotron-3-ultra-550b-a55b" {
+		t.Errorf("expected model 'nemotron-3-ultra-550b-a55b', got '%s'", info.Model)
 	}
 }
 
@@ -710,10 +710,10 @@ func TestResolveProviderAlias(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"ds", "deepseek"},
-		{"ant", "anthropic"},
-		{"oa", "openai"},
-		{"deepseek", "deepseek"},
+		{"nv", "nvidia"},
+		{"gh", "github"},
+		{"ag", "antigravity"},
+		{"nvidia", "nvidia"},
 		{"unknown-provider", "unknown-provider"},
 	}
 
@@ -735,11 +735,11 @@ func TestGetProviderConfig(t *testing.T) {
 	handler := NewChatHandler(repo)
 
 	// Known provider
-	cfg, err := handler.getProviderConfig("deepseek", &ConnectionData{})
+	cfg, err := handler.getProviderConfig("nvidia", &ConnectionData{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.BaseURL != "https://api.deepseek.com/chat/completions" {
+	if cfg.BaseURL != "https://integrate.api.nvidia.com/v1/chat/completions" {
 		t.Errorf("unexpected base URL: %s", cfg.BaseURL)
 	}
 	if cfg.AuthScheme != "bearer" {
@@ -747,7 +747,7 @@ func TestGetProviderConfig(t *testing.T) {
 	}
 
 	// Custom base URL override
-	cfg, err = handler.getProviderConfig("deepseek", &ConnectionData{BaseURL: "http://custom:8080/v1/chat/completions"})
+	cfg, err = handler.getProviderConfig("nvidia", &ConnectionData{BaseURL: "http://custom:8080/v1/chat/completions"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

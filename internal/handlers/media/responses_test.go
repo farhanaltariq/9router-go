@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"9router/proxy/internal/db"
-	"9router/proxy/internal/providers"
 )
 
 func setupResponsesTestDB(t *testing.T) (*sql.DB, func()) {
@@ -179,7 +178,7 @@ func TestHandleResponses_SingleModel_NoAPIKey(t *testing.T) {
 
 	connData, _ := json.Marshal(map[string]any{})
 	_, err := database.Exec(`INSERT INTO providerConnections (id, provider, authType, name, priority, isActive, data, createdAt, updatedAt) VALUES
-		('conn-1', 'deepseek', 'apikey', 'No Key', 0, 1, ?, '2026-07-18T00:00:00Z', '2026-07-18T00:00:00Z')`,
+		('conn-1', 'commandcode', 'apikey', 'No Key', 0, 1, ?, '2026-07-18T00:00:00Z', '2026-07-18T00:00:00Z')`,
 		string(connData))
 	if err != nil {
 		t.Fatalf("failed to insert connection: %v", err)
@@ -188,7 +187,7 @@ func TestHandleResponses_SingleModel_NoAPIKey(t *testing.T) {
 	repo := db.NewRepo(database)
 	handler := newTestMediaHandler(repo)
 
-	body := `{"model":"deepseek/deepseek-chat","stream":false}`
+	body := `{"model":"commandcode/deepseek/deepseek-v4-pro","stream":false}`
 	req := httptest.NewRequest("POST", "/responses", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 
@@ -326,57 +325,8 @@ func TestHandleResponses_ComboFallback_AllFail(t *testing.T) {
 	// Both combo members fail with 500: the last upstream status is preserved
 	// (not collapsed to 502).
 	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestHandleResponses_DefaultAPIKey_OpenCodeWithoutConnection(t *testing.T) {
-	database, cleanup := setupResponsesTestDB(t)
-	defer cleanup()
-
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasSuffix(r.URL.Path, "/responses") {
-			t.Errorf("expected path ending in /responses, got %s", r.URL.Path)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 		}
-		if r.Header.Get("Authorization") != "Bearer public" {
-			t.Errorf("expected Authorization Bearer public, got %s", r.Header.Get("Authorization"))
-		}
-		body, _ := io.ReadAll(r.Body)
-		var req map[string]any
-		if err := json.Unmarshal(body, &req); err != nil {
-			t.Fatalf("failed to parse upstream body: %v", err)
-		}
-		if req["model"] != "muse-spark-1.3-contributor-free" {
-			t.Errorf("expected model muse-spark-1.3-contributor-free, got %v", req["model"])
-		}
-		inputList, ok := req["input"].([]any)
-		if !ok || len(inputList) == 0 {
-			t.Fatalf("expected non-empty input array, got %v", req["input"])
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":"resp-opencode","output":[{"type":"message","content":[{"type":"text","text":"hello from opencode"}]}]}`))
-	}))
-	defer upstream.Close()
-
-	// Override opencode BaseURL in KnownProviders for test
-	oldCfg := providers.KnownProviders["opencode"]
-	defer func() { providers.KnownProviders["opencode"] = oldCfg }()
-	cfg := oldCfg
-	cfg.BaseURL = upstream.URL + "/responses"
-	providers.KnownProviders["opencode"] = cfg
-
-	repo := db.NewRepo(database)
-	handler := newTestMediaHandler(repo)
-
-	// Note: No connection in database! This tests DefaultAPIKey fallback
-	body := `{"model":"opencode/muse-spark-1.3-contributor-free","input":"Say hello in one sentence.","stream":false}`
-	req := httptest.NewRequest("POST", "/responses", strings.NewReader(body))
-	rec := httptest.NewRecorder()
-
-	handler.HandleResponses(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

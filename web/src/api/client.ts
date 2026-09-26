@@ -194,24 +194,6 @@ export interface SystemVersionInfo {
   arch?: string
   checkedAt?: string
 }
-export interface FreebuffInitiateResponse {
-  loginUrl: string
-  authCode: string
-  fingerprintId: string
-  fingerprintHash: string
-  expiresAt: string
-}
-
-export interface FreebuffPollResponse {
-  status: 'authorized' | 'pending' | 'expired'
-  connectionId?: string
-  user?: {
-    id?: string
-    name?: string
-    email?: string
-  }
-}
-
 export interface ConnectionQuotaInfo {
   used?: number
   total?: number
@@ -230,56 +212,6 @@ export interface ConnectionUsageResponse {
   error?: string
 }
 
-export interface FreebuffSessionSwitchResponse {
-  status: 'active'
-  currentModel: string
-  instanceId?: string
-  expiresAt?: string
-  /** False when the session was already on the requested model. */
-  switched: boolean
-  /** Freebucks the server credited back for the released session. */
-  freebucksRefund?: number
-}
-
-export interface FreebuffSessionStatusResponse {
-  status: 'active' | 'none' | 'unauthorized' | 'banned' | 'country_blocked'
-  /** Account this report describes — set so the UI can name it. */
-  connectionId?: string
-  connectionName?: string
-  currentModel?: string
-  instanceId?: string
-  expiresAt?: string
-  accessTier?: string
-  countryCode?: string
-  /** Present when the server refuses this region, even on an active session. */
-  countryBlockReason?: string
-  /** Sessions the account has left today, for the model in currentModel. */
-  rateLimit?: {
-    model?: string
-    limit?: number
-    recentCount?: number
-    poolLabel?: string
-    resetAt?: string
-    resetTimeZone?: string
-  }
-  freebucks?: {
-    balance?: number
-    daily?: {
-      limit?: number
-      spent?: number
-      remaining?: number
-      resetAt?: string
-      resetTimeZone?: string
-    }
-    wallet?: {
-      balance?: number
-      monthlyBonus?: number
-    }
-    planId?: string | null
-    prices?: Record<string, number>
-    [key: string]: unknown
-  }
-}
 export interface RequireLoginResponse {
   requireLogin: boolean
   tunnelDashboardAccess?: boolean
@@ -588,21 +520,6 @@ export const api = {
       body: JSON.stringify(settings),
     }),
   // OAuth Flows
-  initiateFreebuff: () => request<FreebuffInitiateResponse>('/api/oauth/freebuff/initiate', { method: 'POST' }),
-  pollFreebuff: (fingerprintId: string, fingerprintHash: string, expiresAt?: number | string) =>
-    request<FreebuffPollResponse>('/api/oauth/freebuff/poll', {
-      method: 'POST',
-      body: JSON.stringify({ fingerprintId, fingerprintHash, expiresAt }),
-    }),
-  getFreebuffSessionStatus: (connectionId?: string) =>
-    request<FreebuffSessionStatusResponse>(
-      `/api/oauth/freebuff/session${connectionId ? `?connectionId=${encodeURIComponent(connectionId)}` : ''}`
-    ),
-  switchFreebuffSession: (model: string, connectionId?: string) =>
-    request<FreebuffSessionSwitchResponse>('/api/oauth/freebuff/session/switch', {
-      method: 'POST',
-      body: JSON.stringify({ connectionId, model }),
-    }),
   getAntigravityAuthorizeUrl: (redirectUri: string) =>
     request<{ url: string; redirectUrl: string; authUrl: string; state: string; redirectUri: string }>(
       `/api/oauth/antigravity/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`,
@@ -611,15 +528,6 @@ export const api = {
     request<{ success: boolean; error?: string }>('/api/oauth/antigravity/exchange', {
       method: 'POST',
       body: JSON.stringify({ code, redirectUri, state }),
-    }),
-  getClineAuthorizeUrl: (provider: string, redirectUri?: string) =>
-    request<{ url: string; authUrl: string; state: string; codeVerifier: string; codeChallenge: string; redirectUri: string }>(
-      `/api/oauth/cline/authorize?provider=${encodeURIComponent(provider)}${redirectUri ? `&redirect_uri=${encodeURIComponent(redirectUri)}` : ''}`
-    ),
-  clineExchange: (provider: string, code: string, codeVerifier: string, redirectUri?: string, name?: string) =>
-    request<{ status: string; connectionId: string; error?: string }>('/api/oauth/cline/exchange', {
-      method: 'POST',
-      body: JSON.stringify({ provider, code, codeVerifier, redirectUri, name }),
     }),
   importOAuthToken: (provider: string, accessToken: string, refreshToken?: string, name?: string) =>
     request<{ id: string; connection: string; error?: string }>(`/api/oauth/${encodeURIComponent(provider)}/import`, {
@@ -652,15 +560,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  customAuthorize: (provider: 'trae' | 'windsurf' | 'zed', redirectUri?: string) =>
-    request<{ url: string; authUrl: string; state?: string; codeVerifier?: string; redirectUri?: string; loginTraceId?: string; systemId?: string }>(
-      `/api/oauth/${provider}/authorize${redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''}`
-    ),
-  customExchange: (provider: 'trae' | 'windsurf' | 'zed', payload: { code: string; state?: string; codeVerifier?: string; systemId?: string; name?: string }) =>
-    request<{ status: string; connectionId: string; error?: string }>(`/api/oauth/${provider}/exchange`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
   deviceStart: (provider: string, opts?: { region?: string; startUrl?: string; authMethod?: string }) =>
     request<{ device_code: string; user_code: string; verification_uri: string; verification_uri_complete: string; expires_in: number; interval: number; session: Record<string, unknown> }>(
       '/api/oauth/device/start',
@@ -670,37 +569,6 @@ export const api = {
     request<{ status: string; connectionId?: string; error?: string }>('/api/oauth/device/poll', {
       method: 'POST',
       body: JSON.stringify({ provider, device_code: deviceCode, session }),
-    }),
-  cursorImport: (accessToken: string, machineId: string) =>
-    request<{ success: boolean; id: string; error?: string }>('/api/oauth/cursor/import', {
-      method: 'POST',
-      body: JSON.stringify({ accessToken, machineId }),
-    }),
-  cursorAutoImport: () => request<{ success: boolean; id: string; error?: string }>('/api/oauth/cursor/auto-import'),
-  kimchiAuthorize: (redirectUri?: string) => request<{ url: string; authUrl: string; state: string }>(`/api/oauth/kimchi/authorize${redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''}`),
-  kimchiExchange: (code: string) =>
-    request<{ status: string; connectionId: string; error?: string }>('/api/oauth/kimchi/exchange', {
-      method: 'POST',
-      body: JSON.stringify({ code }),
-    }),
-  gitlabPAT: (token: string, baseUrl?: string) =>
-    request<{ success: boolean; error?: string }>('/api/oauth/gitlab/pat', {
-      method: 'POST',
-      body: JSON.stringify({ token, baseUrl }),
-    }),
-  iflowCookie: (cookie: string) =>
-    request<{ success: boolean; error?: string }>('/api/oauth/iflow/cookie', {
-      method: 'POST',
-      body: JSON.stringify({ cookie }),
-    }),
-  mimoAuthorize: (redirectUri?: string) => {
-    const q = redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''
-    return request<{ url: string; authUrl: string; codeVerifier: string }>(`/api/oauth/xiaomi-mimo/authorize${q}`)
-  },
-  mimoExchange: (code: string, codeVerifier: string) =>
-    request<{ status: string; connectionId: string; error?: string }>('/api/oauth/xiaomi-mimo/exchange', {
-      method: 'POST',
-      body: JSON.stringify({ code, codeVerifier }),
     }),
   getSystemVersion: () => request<SystemVersionInfo>('/api/version'),
   checkUpdate: () => request<SystemVersionInfo>('/api/version/check'),

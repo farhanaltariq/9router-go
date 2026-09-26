@@ -266,10 +266,10 @@ func TestTestConnection_OAuthTokenExists(t *testing.T) {
 	repo, cleanup := setupProbeTestDB(t)
 	defer cleanup()
 
-	if err := repo.CreateProviderConnectionFull("conn-cursor", "cursor", "oauth", "Cursor", nil, `{"accessToken":"cursor-token"}`); err != nil {
+	if err := repo.CreateProviderConnectionFull("conn-cb", "codebuddy-cn", "oauth", "CodeBuddy", nil, `{"accessToken":"cb-token"}`); err != nil {
 		t.Fatalf("create connection: %v", err)
 	}
-	_, body := postTestConnection(t, repo, "conn-cursor")
+	_, body := postTestConnection(t, repo, "conn-cb")
 	if body["valid"] != true {
 		t.Fatalf("expected valid, got %v", body)
 	}
@@ -331,37 +331,12 @@ func TestTestConnection_OAuthRefreshesExpiredToken(t *testing.T) {
 	}
 }
 
-func TestTestConnection_GrokCLISoftFailKeepsConnectionActive(t *testing.T) {
-	repo, cleanup := setupProbeTestDB(t)
-	defer cleanup()
-
-	if err := repo.CreateProviderConnectionFull("conn-grok", "grok-cli", "oauth", "Grok", nil, `{"accessToken":"tok","expiresAt":"2099-01-01T00:00:00Z"}`); err != nil {
-		t.Fatalf("create connection: %v", err)
-	}
-	stubProbeDo(t, func(string, string) (int, []byte) { return http.StatusPaymentRequired, nil })
-
-	_, body := postTestConnection(t, repo, "conn-grok")
-	if body["valid"] != true {
-		t.Fatalf("402 must stay a soft success, got %v", body)
-	}
-	if body["error"] != oauthProbeConfigs["grok-cli"].softFailMessage[http.StatusPaymentRequired] {
-		t.Errorf("warning text = %v", body["error"])
-	}
-	data := readConnectionData(t, repo, "conn-grok")
-	if data["testStatus"] != "active" {
-		t.Errorf("testStatus = %v, want active", data["testStatus"])
-	}
-	if data["lastError"] == nil {
-		t.Error("expected the soft warning to be surfaced as lastError")
-	}
-}
-
 func TestTestConnection_OAuthRefreshRetryOn401(t *testing.T) {
 	repo, cleanup := setupProbeTestDB(t)
 	defer cleanup()
 
-	const provider = "grok-cli"
-	if err := repo.CreateProviderConnectionFull("conn-grok-401", provider, "oauth", "Grok", nil,
+	const provider = "codex"
+	if err := repo.CreateProviderConnectionFull("conn-codex-401", provider, "oauth", "Codex", nil,
 		`{"accessToken":"dead","refreshToken":"rt","expiresAt":"2099-01-01T00:00:00Z"}`); err != nil {
 		t.Fatalf("create connection: %v", err)
 	}
@@ -388,14 +363,14 @@ func TestTestConnection_OAuthRefreshRetryOn401(t *testing.T) {
 	}
 	t.Cleanup(func() { connectionProbeDo = originalProbe })
 
-	_, body := postTestConnection(t, repo, "conn-grok-401")
+	_, body := postTestConnection(t, repo, "conn-codex-401")
 	if body["valid"] != true || body["refreshed"] != true {
 		t.Fatalf("unexpected body: %v", body)
 	}
 	if calls < 2 {
 		t.Errorf("expected a retry after refresh, calls = %d", calls)
 	}
-	if data := readConnectionData(t, repo, "conn-grok-401"); data["accessToken"] != "live-token" {
+	if data := readConnectionData(t, repo, "conn-codex-401"); data["accessToken"] != "live-token" {
 		t.Errorf("refreshed token not persisted: %v", data)
 	}
 }
@@ -509,11 +484,11 @@ func TestHandleTestConnectionReadsRequestBody(t *testing.T) {
 	repo, cleanup := setupProbeTestDB(t)
 	defer cleanup()
 
-	if err := repo.CreateProviderConnectionFull("conn-cursor2", "cursor", "oauth", "Cursor", nil, `{"accessToken":"tok"}`); err != nil {
+	if err := repo.CreateProviderConnectionFull("conn-cb2", "codebuddy-cn", "oauth", "CodeBuddy", nil, `{"accessToken":"tok"}`); err != nil {
 		t.Fatalf("create connection: %v", err)
 	}
 	router := setupTestRouter(repo)
-	req := httptest.NewRequest(http.MethodPost, "/api/providers/conn-cursor2/test", io.NopCloser(strings.NewReader(`{}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/providers/conn-cb2/test", io.NopCloser(strings.NewReader(`{}`)))
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

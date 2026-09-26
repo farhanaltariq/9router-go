@@ -71,7 +71,7 @@ export function resolveModelPickerGroups(
     }
     const alias = catItem.alias || PROVIDER_ID_TO_ALIAS[catItem.id] || catItem.id
     const rawModels = getModelsByProviderId(catItem.id)
-    const hardcodedIds = new Set((rawModels || []).map((m) => m.id))
+    const hardcodedIds = new Set((rawModels || []).map((m: any) => m.id))
     const hasHardcoded = (rawModels || []).length > 0
 
     // Upstream parity (ModelSelectModal.js): custom models registered via

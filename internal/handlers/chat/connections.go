@@ -339,15 +339,9 @@ func extractAssignedModel(dataStr string) string {
 	if am, ok := m["assignedModel"].(string); ok && am != "" {
 		return am
 	}
-	if fm, ok := m["freebuffModel"].(string); ok && fm != "" {
-		return fm
-	}
 	if psd, ok := m["providerSpecificData"].(map[string]any); ok {
 		if am, ok := psd["assignedModel"].(string); ok && am != "" {
 			return am
-		}
-		if fm, ok := psd["freebuffModel"].(string); ok && fm != "" {
-			return fm
 		}
 	}
 	return ""

@@ -3,7 +3,6 @@ package dashboard
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	json "encoding/json/v2"
 	"fmt"
 	"io"
@@ -65,24 +64,14 @@ func (r usageResult) toResponse() map[string]any {
 // ported usage handler. Returns ok=false for unhandled providers (caller
 // falls back to locks/antigravity paths).
 func fetchProviderUsage(ctx context.Context, provider string, data map[string]any) (usageResult, bool) {
-	accessToken, apiKey, psd := usageCreds(data)
+	accessToken, apiKey, _ := usageCreds(data)
 	switch provider {
-	case "deepseek":
-		return fetchDeepseekUsage(ctx, apiKey), true
-	case "groq":
-		return fetchGroqUsage(ctx, apiKey), true
 	case "commandcode":
 		return fetchCommandCodeUsage(ctx, apiKey), true
 	case "ollama":
 		return fetchOllamaUsage(ctx, apiKey), true
-	case "qoder":
-		return fetchQoderUsage(ctx, firstNonEmptyStr(accessToken, apiKey)), true
 	case "codebuddy-intl":
 		return fetchCodeBuddyIntlUsage(ctx, accessToken, apiKey), true
-	case "kiro":
-		return fetchKiroUsage(ctx, accessToken, psd), true
-	case "grok-cli":
-		return fetchGrokCliUsage(ctx, accessToken, psd), true
 	default:
 		return usageResult{}, false
 	}
@@ -268,164 +257,6 @@ func firstNonEmptyStr(vals ...string) string {
 	return ""
 }
 
-// ---------- deepseek: GET /user/balance ----------
-
-func fetchDeepseekUsage(ctx context.Context, apiKey string) usageResult {
-	if strings.TrimSpace(apiKey) == "" {
-		return usageResult{message: "DeepSeek API key not available. Add a key to view usage."}
-	}
-	status, _, out, err := usageGet(ctx, "https://api.deepseek.com/user/balance", map[string]string{
-		"Authorization": "Bearer " + strings.TrimSpace(apiKey),
-		"Accept":        "application/json",
-	})
-	if err != nil {
-		return usageResult{message: fmt.Sprintf("DeepSeek error: %v", err)}
-	}
-	if status == 401 || status == 403 {
-		return usageResult{plan: "DeepSeek", message: "DeepSeek authentication failed. Check the API key."}
-	}
-	if status < 200 || status >= 300 {
-		msg := fmt.Sprintf("DeepSeek balance API error (%d)", status)
-		if t := strings.TrimSpace(string(out)); t != "" {
-			if len(t) > 120 {
-				t = t[:120]
-			}
-			msg += ": " + t
-		}
-		return usageResult{plan: "DeepSeek", message: msg}
-	}
-	data := usageJSON(out)
-	if data == nil {
-		return usageResult{message: "DeepSeek balance response was not JSON."}
-	}
-	var list []any
-	if l, ok := data["balance_infos"].([]any); ok {
-		list = l
-	}
-	quotas := map[string]any{}
-	for _, item := range list {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		cur, _ := m["currency"].(string)
-		cur = strings.ToUpper(strings.TrimSpace(cur))
-		if cur == "" {
-			continue
-		}
-		total := math.Max(0, usageNum(firstNonEmptyAny(m["total_balance"], m["totalBalance"]), 0))
-		quotas[fmt.Sprintf("Balance (%s)", cur)] = map[string]any{
-			"used": 0, "total": total,
-			"remainingPercentage": func() float64 {
-				if total > 0 {
-					return 100
-				}
-				return 0
-			}(),
-			"resetAt": nil, "unlimited": false, "isCreditBalance": true, "currency": cur,
-		}
-	}
-	if len(quotas) == 0 {
-		return usageResult{plan: "DeepSeek", message: "DeepSeek connected. No balance data returned."}
-	}
-	plan := "DeepSeek"
-	if data["is_available"] != true && data["isAvailable"] != true {
-		plan = "DeepSeek (Insufficient Balance)"
-	}
-	return usageResult{plan: plan, quotas: quotas}
-}
-
-func firstNonEmptyAny(vals ...any) any {
-	for _, v := range vals {
-		if v != nil {
-			return v
-		}
-	}
-	return nil
-}
-
-// ---------- groq: rate-limit headers on GET /openai/v1/models ----------
-
-var groqDurationRe = regexp.MustCompile(`(\d+(?:\.\d+)?)(ms|s|m|h)`)
-
-func parseGroqDurationMs(value string) (int64, bool) {
-	matches := groqDurationRe.FindAllStringSubmatch(value, -1)
-	if len(matches) == 0 {
-		return 0, false
-	}
-	var total float64
-	for _, m := range matches {
-		amt, _ := strconv.ParseFloat(m[1], 64)
-		switch m[2] {
-		case "h":
-			total += amt * 3600000
-		case "m":
-			total += amt * 60000
-		case "ms":
-			total += amt
-		default:
-			total += amt * 1000
-		}
-	}
-	return int64(total), true
-}
-
-func groqRateLimitQuota(h http.Header, limitKey, remainingKey, resetKey string) map[string]any {
-	limitRaw, remainingRaw := h.Get(limitKey), h.Get(remainingKey)
-	if limitRaw == "" || remainingRaw == "" {
-		return nil
-	}
-	limit, err1 := strconv.ParseFloat(strings.TrimSpace(limitRaw), 64)
-	remaining, err2 := strconv.ParseFloat(strings.TrimSpace(remainingRaw), 64)
-	if err1 != nil || err2 != nil || math.IsNaN(limit) || math.IsNaN(remaining) {
-		return nil
-	}
-	resetAt := ""
-	if ms, ok := parseGroqDurationMs(h.Get(resetKey)); ok {
-		resetAt = time.Now().Add(time.Duration(ms) * time.Millisecond).UTC().Format(time.RFC3339)
-	}
-	return usageQuota(limit-remaining, limit, resetAt)
-}
-
-func fetchGroqUsage(ctx context.Context, apiKey string) usageResult {
-	if strings.TrimSpace(apiKey) == "" {
-		return usageResult{message: "Groq API key not available. Add a key to view usage."}
-	}
-	status, headers, out, err := usageGet(ctx, "https://api.groq.com/openai/v1/models", map[string]string{
-		"Authorization": "Bearer " + strings.TrimSpace(apiKey),
-		"Accept":        "application/json",
-	})
-	if err != nil {
-		return usageResult{message: fmt.Sprintf("Groq error: %v", err)}
-	}
-	if status == 401 || status == 403 {
-		return usageResult{plan: "Groq", message: "Groq authentication failed. Check the API key."}
-	}
-	if status < 200 || status >= 300 {
-		msg := fmt.Sprintf("Groq usage API error (%d)", status)
-		if t := strings.TrimSpace(string(out)); t != "" {
-			if len(t) > 120 {
-				t = t[:120]
-			}
-			msg += ": " + t
-		}
-		return usageResult{plan: "Groq", message: msg}
-	}
-	requests := groqRateLimitQuota(headers, "x-ratelimit-limit-requests", "x-ratelimit-remaining-requests", "x-ratelimit-reset-requests")
-	tokens := groqRateLimitQuota(headers, "x-ratelimit-limit-tokens", "x-ratelimit-remaining-tokens", "x-ratelimit-reset-tokens")
-	if requests == nil && tokens == nil {
-		return usageResult{plan: "Groq", message: "Groq connected. No rate-limit data reported for this key yet.", quotas: map[string]any{}}
-	}
-	quotas := map[string]any{}
-	if requests != nil {
-		quotas["Requests"] = requests
-	}
-	if tokens != nil {
-		quotas["Tokens"] = tokens
-	}
-	return usageResult{plan: "Groq", quotas: quotas}
-}
-
 // ---------- commandcode: whoami → credits + subscriptions ----------
 
 var commandCodePlanNames = map[string]string{
@@ -607,8 +438,8 @@ func fetchOllamaUsage(ctx context.Context, apiKey string) usageResult {
 	}
 	plan := "Ollama Cloud"
 	meHeaders := map[string]string{
-		"Authorization": "Bearer " + strings.TrimSpace(apiKey),
-		"Accept":        "application/json",
+		"Authorization":  "Bearer " + strings.TrimSpace(apiKey),
+		"Accept":         "application/json",
 		"Content-Length": "0",
 	}
 	if s, _, meOut, meErr := usageDo(ctx, http.MethodPost, "https://ollama.com/api/me", meHeaders, nil); meErr == nil && s >= 200 && s < 300 {
@@ -666,77 +497,17 @@ func usageNumOK(v any) (float64, bool) {
 	return 0, false
 }
 
-// ---------- qoder: GET openapi quota/usage ----------
-
-func fetchQoderUsage(ctx context.Context, accessToken string) usageResult {
-	if strings.TrimSpace(accessToken) == "" {
-		return usageResult{message: "Qoder usage unavailable: no access token", bare: true}
-	}
-	status, _, out, err := usageGet(ctx, "https://openapi.qoder.sh/api/v2/quota/usage", map[string]string{
-		"Authorization": "Bearer " + strings.TrimSpace(accessToken),
-		"Accept":        "application/json",
-	})
-	if err != nil {
-		return usageResult{message: fmt.Sprintf("Qoder connected. Unable to fetch usage: %v", err), bare: true}
-	}
-	if status < 200 || status >= 300 {
-		return usageResult{message: fmt.Sprintf("Qoder connected. Usage fetch returned %d.", status), bare: true}
-	}
-	body := usageJSON(out)
-	if body == nil {
-		return usageResult{message: "Qoder connected. Usage response was not JSON.", bare: true}
-	}
-	var expiresMs float64
-	if e := usageNum(body["expiresAt"], 0); e > 0 {
-		expiresMs = e
-	}
-	resetAt := ""
-	if expiresMs > 0 {
-		resetAt = time.UnixMilli(int64(expiresMs)).UTC().Format(time.RFC3339)
-	}
-	userQuota, _ := body["userQuota"].(map[string]any)
-	orgQuota, _ := body["orgResourcePackage"].(map[string]any)
-	strOr := func(m map[string]any, k, fallback string) string {
-		if s, _ := m[k].(string); s != "" {
-			return s
-		}
-		return fallback
-	}
-	quotas := map[string]any{
-		"user": map[string]any{
-			"total": usageNum(userQuota["total"], 0), "used": usageNum(userQuota["used"], 0),
-			"remaining": usageNum(userQuota["remaining"], 0), "unit": strOr(userQuota, "unit", "credits"),
-			"resetAt": resetAt,
-		},
-		"organization": map[string]any{
-			"total": usageNum(orgQuota["total"], 0), "used": usageNum(orgQuota["used"], 0),
-			"remaining": usageNum(orgQuota["remaining"], 0), "unit": strOr(orgQuota, "unit", "credits"),
-			"resetAt": resetAt,
-		},
-	}
-	extra := map[string]any{
-		"totalUsagePercentage": usageNum(body["totalUsagePercentage"], 0),
-	}
-	if b, ok := body["isQuotaExceeded"].(bool); ok {
-		extra["isQuotaExceeded"] = b
-	}
-	if expiresMs > 0 {
-		extra["expiresAt"] = expiresMs
-	}
-	return usageResult{quotas: quotas, extra: extra}
-}
-
 // ---------- codebuddy-intl: POST billing meter ----------
 
 var codebuddyIntlHeaders = map[string]string{
-	"User-Agent":         "IDE/2.108.1 CodeBuddy/2.108.1",
-	"X-Product":          "SaaS",
-	"X-IDE-Type":         "IDE",
-	"X-IDE-Name":         "IDE",
-	"X-Requested-With":   "XMLHttpRequest",
+	"User-Agent":          "IDE/2.108.1 CodeBuddy/2.108.1",
+	"X-Product":           "SaaS",
+	"X-IDE-Type":          "IDE",
+	"X-IDE-Name":          "IDE",
+	"X-Requested-With":    "XMLHttpRequest",
 	"X-Codebuddy-Request": "1",
-	"Content-Type":       "application/json",
-	"Accept":             "application/json",
+	"Content-Type":        "application/json",
+	"Accept":              "application/json",
 }
 
 func codebuddyNum(precise, plain any) float64 {
@@ -851,17 +622,17 @@ func fetchCodeBuddyIntlUsage(ctx context.Context, accessToken, apiKey string) us
 			name = fmt.Sprintf("%s %d", base, seen[base])
 		}
 		quotas[name] = map[string]any{
-			"used": codebuddyNum(acc["CycleCapacityUsedPrecise"], acc["CycleCapacityUsed"]),
-			"total": codebuddyNum(acc["CycleCapacitySizePrecise"], acc["CycleCapacitySize"]),
-			"resetAt": usageResetTimeToNil(acc["CycleEndTime"]),
+			"used":      codebuddyNum(acc["CycleCapacityUsedPrecise"], acc["CycleCapacityUsed"]),
+			"total":     codebuddyNum(acc["CycleCapacitySizePrecise"], acc["CycleCapacitySize"]),
+			"resetAt":   usageResetTimeToNil(acc["CycleEndTime"]),
 			"unlimited": false, "recurring": true,
 		}
 	}
 	for i, acc := range bonuses {
 		quotas[fmt.Sprintf("Bonus Pack %d", i+1)] = map[string]any{
-			"used": codebuddyNum(acc["CapacityUsedPrecise"], acc["CapacityUsed"]),
-			"total": codebuddyNum(acc["CapacitySizePrecise"], acc["CapacitySize"]),
-			"resetAt": usageResetTimeToNil(acc["CycleEndTime"]),
+			"used":      codebuddyNum(acc["CapacityUsedPrecise"], acc["CapacityUsed"]),
+			"total":     codebuddyNum(acc["CapacitySizePrecise"], acc["CapacitySize"]),
+			"resetAt":   usageResetTimeToNil(acc["CycleEndTime"]),
 			"unlimited": false, "recurring": false,
 		}
 	}
@@ -880,490 +651,6 @@ func fetchCodeBuddyIntlUsage(ctx context.Context, accessToken, apiKey string) us
 		plan = p
 	}
 	return usageResult{plan: plan, quotas: quotas}
-}
-
-// ---------- kiro: codewhisperer getUsageLimits (3 attempts) ----------
-
-const (
-	kiroCwHost      = "https://codewhisperer.us-east-1.amazonaws.com"
-	kiroQHost       = "https://q.us-east-1.amazonaws.com"
-	kiroLimitsPath  = "/getUsageLimits"
-	kiroProfileARNBuilder = "arn:aws:codewhisperer:us-east-1:638616132270:profile/AAAACCCCXXXX"
-	kiroProfileARNSocial  = "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK"
-)
-
-func resolveKiroDefaultProfileARN(authMethod string) string {
-	if authMethod == "google" || authMethod == "github" {
-		return kiroProfileARNSocial
-	}
-	return kiroProfileARNBuilder
-}
-
-func parseKiroQuotaData(data map[string]any) usageResult {
-	var list []any
-	if l, ok := data["usageBreakdownList"].([]any); ok {
-		list = l
-	}
-	resetAt := usageResetTime(firstNonEmptyAny(data["nextDateReset"], data["resetDate"]))
-	quotas := map[string]any{}
-	for _, item := range list {
-		b, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		rt, _ := b["resourceType"].(string)
-		rt = strings.ToLower(strings.TrimSpace(rt))
-		if rt == "" {
-			rt = "unknown"
-		}
-		used := usageNum(b["currentUsageWithPrecision"], 0)
-		total := usageNum(b["usageLimitWithPrecision"], 0)
-		quotas[rt] = map[string]any{
-			"used": used, "total": total, "remaining": total - used,
-			"resetAt": usageResetTimeToNil(resetAtStr(resetAt)), "unlimited": false,
-		}
-		if ft, ok := b["freeTrialInfo"].(map[string]any); ok {
-			fu := usageNum(ft["currentUsageWithPrecision"], 0)
-			ftot := usageNum(ft["usageLimitWithPrecision"], 0)
-			fr := usageResetTime(ft["freeTrialExpiry"])
-			if fr == "" {
-				fr = resetAt
-			}
-			quotas[rt+"_freetrial"] = map[string]any{
-				"used": fu, "total": ftot, "remaining": ftot - fu,
-				"resetAt": usageResetTimeToNil(fr), "unlimited": false,
-			}
-		}
-	}
-	plan := "Kiro"
-	if sub, ok := data["subscriptionInfo"].(map[string]any); ok {
-		if title, _ := sub["subscriptionTitle"].(string); title != "" {
-			plan = title
-		}
-	}
-	return usageResult{plan: plan, quotas: quotas}
-}
-
-func resetAtStr(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
-}
-
-func fetchKiroUsage(ctx context.Context, accessToken string, psd map[string]any) usageResult {
-	authMethod, _ := psd["authMethod"].(string)
-	if authMethod == "" {
-		authMethod = "builder-id"
-	}
-	extra := map[string]string{}
-	if authMethod == "api_key" {
-		extra["tokentype"] = "API_KEY"
-	} else if authMethod == "external_idp" {
-		extra["TokenType"] = "EXTERNAL_IDP"
-	}
-	var profileARN string
-	if authMethod == "api_key" {
-		profileARN, _ = psd["profileArn"].(string)
-	} else {
-		profileARN, _ = psd["profileArn"].(string)
-		if profileARN == "" {
-			profileARN = resolveKiroDefaultProfileARN(authMethod)
-		}
-	}
-	params := url.Values{"isEmailRequired": {"true"}, "origin": {"AI_EDITOR"}, "resourceType": {"AGENTIC_REQUEST"}}
-	type attempt struct {
-		name        string
-		method      string
-		url         string
-		headers     map[string]string
-		body        []byte
-	}
-	postBody := map[string]any{"origin": "AI_EDITOR", "resourceType": "AGENTIC_REQUEST"}
-	if profileARN != "" {
-		postBody["profileArn"] = profileARN
-	}
-	postBytes, _ := json.Marshal(postBody)
-	qParams := url.Values{"origin": {"AI_EDITOR"}, "resourceType": {"AGENTIC_REQUEST"}}
-	if profileARN != "" {
-		qParams.Set("profileArn", profileARN)
-	}
-	base := map[string]string{
-		"Authorization": "Bearer " + accessToken,
-		"Accept":        "application/json",
-	}
-	cwGetHeaders := map[string]string{}
-	for k, v := range base {
-		cwGetHeaders[k] = v
-	}
-	cwGetHeaders["x-amz-user-agent"] = "aws-sdk-js/1.0.0 KiroIDE"
-	cwGetHeaders["user-agent"] = "aws-sdk-js/1.0.0 KiroIDE"
-	for k, v := range extra {
-		cwGetHeaders[k] = v
-	}
-	cwPostHeaders := map[string]string{}
-	for k, v := range base {
-		cwPostHeaders[k] = v
-	}
-	cwPostHeaders["Content-Type"] = "application/x-amz-json-1.0"
-	cwPostHeaders["x-amz-target"] = "AmazonCodeWhispererService.GetUsageLimits"
-	for k, v := range extra {
-		cwPostHeaders[k] = v
-	}
-	qGetHeaders := map[string]string{}
-	for k, v := range base {
-		qGetHeaders[k] = v
-	}
-	for k, v := range extra {
-		qGetHeaders[k] = v
-	}
-	attempts := []attempt{
-		{"codewhisperer-get", http.MethodGet, kiroCwHost + kiroLimitsPath + "?" + params.Encode(), cwGetHeaders, nil},
-		{"codewhisperer-post", http.MethodPost, kiroCwHost, cwPostHeaders, postBytes},
-		{"q-get", http.MethodGet, kiroQHost + kiroLimitsPath + "?" + qParams.Encode(), qGetHeaders, nil},
-	}
-	sawAuthError := false
-	var lastErr string
-	for _, a := range attempts {
-		status, _, out, err := usageDo(ctx, a.method, a.url, a.headers, a.body)
-		if err != nil {
-			lastErr = a.name + ":" + err.Error()
-			continue
-		}
-		if status < 200 || status >= 300 {
-			t := strings.TrimSpace(string(out))
-			if status == 401 || status == 403 {
-				sawAuthError = true
-			}
-			lastErr = fmt.Sprintf("%s:%d", a.name, status)
-			if t != "" {
-				if len(t) > 120 {
-					t = t[:120]
-				}
-				lastErr += ":" + t
-			}
-			continue
-		}
-		if data := usageJSON(out); data != nil {
-			return parseKiroQuotaData(data)
-		}
-		lastErr = a.name + ":invalid JSON"
-	}
-	if sawAuthError && authMethod == "idc" {
-		return usageResult{message: "Kiro quota API is unavailable for the current AWS IAM Identity Center session. Chat may still work. If this persists after renewing your session, reconnect Kiro.", quotas: map[string]any{}}
-	}
-	if sawAuthError && (authMethod == "google" || authMethod == "github") {
-		return usageResult{message: "Kiro quota API authentication expired. Chat may still work.", quotas: map[string]any{}}
-	}
-	if sawAuthError {
-		return usageResult{message: "Kiro quota API rejected the current token. Chat may still work.", quotas: map[string]any{}}
-	}
-	if lastErr != "" {
-		return usageResult{message: fmt.Sprintf("Unable to fetch Kiro usage right now. (%s)", lastErr), quotas: map[string]any{}}
-	}
-	return usageResult{message: "Unable to fetch Kiro usage right now.", quotas: map[string]any{}}
-}
-
-// ---------- grok-cli: billing + user ----------
-
-const (
-	grokCliVersion           = "0.2.99"
-	grokCliClientIdentifier  = "grok-shell"
-	grokCliUserAgent         = "grok-shell/0.2.99 (linux; x86_64)"
-	grokCliBillingURL        = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
-	grokCliUserURL           = "https://cli-chat-proxy.grok.com/v1/user?include=subscription"
-)
-
-func grokCliHeaders(accessToken string, psd map[string]any) map[string]string {
-	h := map[string]string{
-		"Authorization": "Bearer " + accessToken,
-		"Accept":        "application/json",
-		"User-Agent":    grokCliUserAgent,
-		"x-xai-token-auth":         "xai-grok-cli",
-		"x-grok-client-identifier": grokCliClientIdentifier,
-		"x-grok-client-version":    grokCliVersion,
-		"x-grok-client-mode":       "headless",
-	}
-	if email := psdStr(psd, "email"); email != "" {
-		h["x-email"] = email
-	}
-	if uid := psdStr(psd, "userId", "principalId"); uid != "" {
-		h["x-userid"] = uid
-	}
-	return h
-}
-
-func grokMakeQuota(used, total float64, resetAt string) map[string]any {
-	// Mirror upstream makeQuota: total<=0 renders as an unlimited row with
-	// total=0 (the FE treats total===0 as unlimited).
-	if total <= 0 {
-		return map[string]any{
-			"used": math.Max(0, used), "total": 0,
-			"remainingPercentage": 100,
-			"resetAt": nil, "unlimited": true,
-		}
-	}
-	return usageQuota(used, total, resetAt)
-}
-
-func grokSubscriptionTier(user, config map[string]any) string {
-	maps := []map[string]any{user, config}
-	for i, m := range maps {
-		for _, k := range []string{"subscriptionTier", "subscription_tier", "tier"} {
-			if k == "tier" && i == 1 {
-				continue
-			}
-			if s, _ := m[k].(string); strings.TrimSpace(s) != "" {
-				return strings.TrimSpace(s)
-			}
-		}
-		if sub, ok := m["subscription"].(map[string]any); ok {
-			if s, _ := sub["tier"].(string); strings.TrimSpace(s) != "" {
-				return strings.TrimSpace(s)
-			}
-		}
-	}
-	return ""
-}
-
-func grokResolvePlan(user, config map[string]any) string {
-	tier := grokSubscriptionTier(user, config)
-	if tier != "" {
-		parts := strings.Fields(strings.NewReplacer("_", " ", "-", " ").Replace(tier))
-		for i, p := range parts {
-			if len(p) > 0 {
-				parts[i] = strings.ToUpper(p[:1]) + p[1:]
-			}
-		}
-		return strings.Join(parts, " ")
-	}
-	if user["hasGrokCodeAccess"] == true {
-		return "Grok Code"
-	}
-	return "Grok Build"
-}
-
-func grokPlanFromToken(accessToken string) string {
-	parts := strings.Split(accessToken, ".")
-	if len(parts) < 2 {
-		return ""
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return ""
-	}
-	var m map[string]any
-	if err := json.Unmarshal(payload, &m); err != nil {
-		return ""
-	}
-	tiers := map[float64]string{
-		0: "Free", 1: "SuperGrok", 2: "X Basic", 3: "X Premium",
-		4: "X Premium Plus", 5: "SuperGrok Heavy", 6: "SuperGrok Lite",
-	}
-	if t, ok := m["tier"].(float64); ok {
-		return tiers[t]
-	}
-	return ""
-}
-
-func fetchGrokCliUsage(ctx context.Context, accessToken string, psd map[string]any) usageResult {
-	if strings.TrimSpace(accessToken) == "" {
-		return usageResult{message: "Grok CLI access token not available."}
-	}
-	headers := grokCliHeaders(accessToken, psd)
-	type fetchRes struct {
-		status int
-		out    []byte
-		err    error
-	}
-	billingCh := make(chan fetchRes, 1)
-	userCh := make(chan fetchRes, 1)
-	go func() {
-		s, _, o, e := usageGet(ctx, grokCliBillingURL, headers)
-		billingCh <- fetchRes{s, o, e}
-	}()
-	go func() {
-		s, _, o, e := usageGet(ctx, grokCliUserURL, headers)
-		userCh <- fetchRes{s, o, e}
-	}()
-	billingRes, userRes := <-billingCh, <-userCh
-	if billingRes.err != nil {
-		return usageResult{message: fmt.Sprintf("Grok CLI error: %v", billingRes.err)}
-	}
-	if billingRes.status == 401 || billingRes.status == 403 {
-		return usageResult{message: "Grok CLI authentication expired. Please re-authorize."}
-	}
-	if billingRes.status < 200 || billingRes.status >= 300 {
-		msg := fmt.Sprintf("Grok CLI billing API error (%d)", billingRes.status)
-		if t := strings.TrimSpace(string(billingRes.out)); t != "" {
-			if len(t) > 200 {
-				t = t[:200]
-			}
-			msg += ": " + t
-		}
-		return usageResult{message: msg}
-	}
-	billing := usageJSON(billingRes.out)
-	if billing == nil {
-		return usageResult{message: "Grok CLI billing response was not JSON."}
-	}
-	var user map[string]any
-	if userRes.err == nil && userRes.status >= 200 && userRes.status < 300 {
-		user = usageJSON(userRes.out)
-	}
-	quotas, _ := parseGrokCliBilling(billing, user)
-	plan := grokPlanFromToken(accessToken)
-	if plan == "" {
-		cfg, _ := quotas["_config"].(map[string]any)
-		plan = grokResolvePlan(user, cfg)
-	}
-	delete(quotas, "_config")
-	if len(quotas) == 0 {
-		msg := "Grok Build connected, but no credit allotment was returned. Free promo may be exhausted."
-		if subAccessOf(billing, user) {
-			msg = "Subscription access is active; Grok does not expose a numeric included quota."
-		}
-		return usageResult{plan: plan, message: msg}
-	}
-	// Attach periodEnd only when quotas render (message would hide the table).
-	// NOTE: upstream grok-cli never returns periodEnd (plan+quotas only), so
-	// unlike other fetchers we do NOT set res.extra here.
-	return usageResult{plan: plan, quotas: quotas}
-}
-
-func subAccessOf(billing, user map[string]any) bool {
-	tier := grokSubscriptionTier(user, billing)
-	if config, ok := billing["config"].(map[string]any); ok {
-		if tier == "" {
-			tier = grokSubscriptionTier(user, config)
-		}
-	}
-	return tier != "" && !regexp.MustCompile(`^(?i)(free|none|null)$`).MatchString(tier)
-}
-
-func parseGrokCliBilling(billing, user map[string]any) (map[string]any, string) {
-	var config map[string]any
-	if c, ok := billing["config"].(map[string]any); ok {
-		config = c
-	} else {
-		config = billing
-	}
-	if config == nil {
-		config = map[string]any{}
-	}
-	if user == nil {
-		user = map[string]any{}
-	}
-	periodEnd := firstNonEmptyStr(
-		usageResetTime(config["billingPeriodEnd"]), usageResetTime(config["billing_period_end"]),
-		usageResetTime(nestedMap(config, "currentPeriod")["end"]),
-		usageResetTime(config["resetAt"]), usageResetTime(config["resetsAt"]), usageResetTime(config["periodEnd"]),
-		usageResetTime(billing["billingPeriodEnd"]), usageResetTime(billing["billing_period_end"]),
-		usageResetTime(billing["resetAt"]), usageResetTime(billing["resetsAt"]), usageResetTime(billing["periodEnd"]),
-	)
-	quotas := map[string]any{"_config": config}
-	tier := grokSubscriptionTier(user, config)
-	subAccess := tier != "" && !regexp.MustCompile(`^(?i)(free|none|null)$`).MatchString(tier)
-
-	monthlyLimit := usageNum(firstNonEmptyAny(config["monthlyLimit"], config["monthly_limit"], billing["monthlyLimit"], billing["monthly_limit"]), math.NaN())
-	includedUsed := usageNum(firstNonEmptyAny(config["includedUsed"], config["included_used"], billing["includedUsed"], billing["included_used"]), math.NaN())
-	totalUsed := usageNum(firstNonEmptyAny(config["totalUsed"], config["total_used"], billing["totalUsed"], billing["total_used"]), math.NaN())
-	if !math.IsNaN(monthlyLimit) && monthlyLimit > 0 {
-		used := 0.0
-		if !math.IsNaN(includedUsed) {
-			used = includedUsed
-		} else if !math.IsNaN(totalUsed) {
-			used = totalUsed
-		}
-		quotas["Monthly included"] = grokMakeQuota(used, monthlyLimit, periodEnd)
-	}
-	onDemandCap := usageNum(firstNonEmptyAny(config["onDemandCap"], billing["onDemandCap"]), math.NaN())
-	onDemandUsed := usageNum(firstNonEmptyAny(config["onDemandUsed"], billing["onDemandUsed"]), math.NaN())
-	if !math.IsNaN(onDemandCap) && onDemandCap > 0 {
-		used := 0.0
-		if !math.IsNaN(onDemandUsed) {
-			used = math.Max(0, onDemandUsed)
-		}
-		quotas["On-demand"] = grokMakeQuota(used, onDemandCap, periodEnd)
-	} else if !subAccess && !math.IsNaN(onDemandCap) && onDemandCap == 0 && !math.IsNaN(onDemandUsed) {
-		quotas["On-demand"] = map[string]any{
-			"used": 1, "total": 1, "remainingPercentage": 0,
-			"resetAt": nil, "unlimited": false,
-		}
-		if periodEnd != "" {
-			quotas["On-demand"].(map[string]any)["resetAt"] = periodEnd
-		}
-	}
-	prepaid := usageNum(firstNonEmptyAny(config["prepaidBalance"], billing["prepaidBalance"]), math.NaN())
-	if !math.IsNaN(prepaid) && prepaid > 0 {
-		quotas["Prepaid"] = map[string]any{
-			"used": 0, "total": prepaid, "remainingPercentage": 100,
-			"resetAt": nil, "unlimited": false,
-		}
-	}
-	usedPct := usageNum(firstNonEmptyAny(config["creditUsagePercent"], config["credit_usage_percent"], billing["creditUsagePercent"]), math.NaN())
-	if !math.IsNaN(usedPct) && usedPct >= 0 {
-		quotas["Weekly SuperGrok"] = grokMakeQuota(math.Max(0, math.Min(100, usedPct)), 100, periodEnd)
-	}
-	for _, bag := range creditBags(billing, config) {
-		total := usageNum(firstNonEmptyAny(bag["total"], bag["limit"], bag["cap"], bag["allocation"], bag["amount"]), math.NaN())
-		used := usageNum(firstNonEmptyAny(bag["used"], bag["spent"], bag["consumed"]), math.NaN())
-		remaining := usageNum(firstNonEmptyAny(bag["remaining"], bag["balance"], bag["left"]), math.NaN())
-		if !math.IsNaN(total) && total > 0 {
-			resolved := 0.0
-			if !math.IsNaN(used) {
-				resolved = used
-			} else if !math.IsNaN(remaining) {
-				resolved = math.Max(0, total-remaining)
-			}
-			if _, exists := quotas["Credits"]; !exists {
-				reset := usageResetTime(firstNonEmptyAny(bag["resetAt"], bag["resetsAt"], bag["end"]))
-				if reset == "" {
-					reset = periodEnd
-				}
-				quotas["Credits"] = grokMakeQuota(resolved, total, reset)
-			}
-		} else if !math.IsNaN(remaining) && remaining >= 0 {
-			if _, exists := quotas["Credits"]; !exists {
-				tot := remaining
-				pct := 100.0
-				if remaining <= 0 {
-					tot = 1
-					pct = 0
-				}
-				quotas["Credits"] = map[string]any{
-					"used": 0, "total": tot, "remainingPercentage": pct,
-					"resetAt": nil, "unlimited": false,
-				}
-				if periodEnd != "" {
-					quotas["Credits"].(map[string]any)["resetAt"] = periodEnd
-				}
-			}
-		}
-	}
-	return quotas, periodEnd
-}
-
-func creditBags(billing, config map[string]any) []map[string]any {
-	// Upstream order: root.credits, root.creditBalance, root.usage,
-	// config.credits, config.includedCredits, config.subscriptionCredits.
-	ordered := []map[string]any{}
-	for _, bag := range []map[string]any{
-		nestedMap(billing, "credits"), nestedMap(billing, "creditBalance"), nestedMap(billing, "usage"),
-		nestedMap(config, "credits"), nestedMap(config, "includedCredits"), nestedMap(config, "subscriptionCredits"),
-	} {
-		if len(bag) > 0 {
-			ordered = append(ordered, bag)
-		}
-	}
-	return ordered
-}
-
-func nestedMap(m map[string]any, key string) map[string]any {
-	if n, ok := m[key].(map[string]any); ok {
-		return n
-	}
-	return map[string]any{}
 }
 
 // ---------------------------------------------------------------------------
@@ -1395,7 +682,7 @@ var antigravityImportantModels = map[string]bool{
 	"gemini-3.5-flash-low": true, "gemini-3.5-flash-extra-low": true,
 	"gemini-pro-agent": true, "gemini-3.1-pro-low": true,
 	"claude-sonnet-4-6": true, "claude-opus-4-6-thinking": true,
-	"gpt-oss-120b-medium": true,
+	"gpt-oss-120b-medium":    true,
 	"gemini-3.1-flash-image": true,
 }
 
@@ -1647,6 +934,7 @@ func fetchAntigravityDashboardWeekly(ctx context.Context, accessToken, projectID
 	}
 	return result
 }
+
 // antigravityProjectID mirrors chat.extractProjectID (unexported there):
 // cloudaicompanionProject arrives as a string id or an {id} object.
 func antigravityProjectID(val any) string {

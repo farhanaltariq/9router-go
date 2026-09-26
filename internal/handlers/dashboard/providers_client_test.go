@@ -24,9 +24,9 @@ func seedProvidersClient(t *testing.T, repo *db.Repo) {
 		id, provider, authType, name, key string
 	}{
 		{"c-codex", "codex", "oauth", "Codex Work", "secret-codex"},
-		{"c-kimi", "kimi", "apikey", "Kimi Key", "secret-kimi"},
+		{"c-codebuddy", "codebuddy-cn", "apikey", "CodeBuddy Key", "secret-codebuddy"},
 		{"c-openai", "openai", "apikey", "OpenAI", "secret-openai"}, // not usage-eligible
-		{"c-long", "trae", "oauth", "abcdefghijklmnopqrstuvwxyz0123456789ABCD", "secret-trae"},
+		{"c-long", "github", "oauth", "abcdefghijklmnopqrstuvwxyz0123456789ABCD", "secret-github"},
 	}
 	for _, s := range seed {
 		if err := repo.CreateProviderConnection(s.id, s.provider, s.authType, s.name, s.key); err != nil {
@@ -77,8 +77,8 @@ func TestProvidersClientPagination(t *testing.T) {
 	// Secrets must never leak; long token-like names masked.
 	for _, c := range conns {
 		m, _ := c.(map[string]any)
-		if m["provider"] == "trae" && m["name"] != "abcdefgh***" {
-			t.Errorf("expected masked trae name, got %v", m["name"])
+		if m["provider"] == "github" && m["name"] != "abcdefgh***" {
+			t.Errorf("expected masked github name, got %v", m["name"])
 		}
 		if id, _ := m["id"].(string); id == "c-kimi" {
 			if m["authType"] != "apikey" {
@@ -99,21 +99,21 @@ func TestProvidersClientFilters(t *testing.T) {
 	defer cleanup()
 	h := NewDashboardHandler(repo)
 	seedProvidersClient(t, repo)
-	// Deactivate kimi via repo update path.
-	if _, err := repo.RawDB().Exec(`UPDATE providerConnections SET isActive = 0 WHERE id = 'c-kimi'`); err != nil {
+	// Deactivate codebuddy via repo update path.
+	if _, err := repo.RawDB().Exec(`UPDATE providerConnections SET isActive = 0 WHERE id = 'c-codebuddy'`); err != nil {
 		t.Fatalf("deactivate: %v", err)
 	}
 	r := setupProvidersClientRouter(h)
 
-	out := getProvidersClient(t, r, "?provider=kimi")
+	out := getProvidersClient(t, r, "?provider=codebuddy-cn")
 	if conns, _ := out["connections"].([]any); len(conns) != 1 {
 		t.Fatalf("provider filter: expected 1, got %d", len(conns))
 	}
 	out = getProvidersClient(t, r, "?accountStatus=inactive")
 	if conns, _ := out["connections"].([]any); len(conns) != 1 {
 		t.Fatalf("inactive filter: expected 1, got %d", len(conns))
-	} else if m, _ := conns[0].(map[string]any); m["id"] != "c-kimi" {
-		t.Errorf("inactive filter returned %v, want c-kimi", m["id"])
+	} else if m, _ := conns[0].(map[string]any); m["id"] != "c-codebuddy" {
+		t.Errorf("inactive filter returned %v, want c-codebuddy", m["id"])
 	}
 	out = getProvidersClient(t, r, "?accountStatus=active")
 	if conns, _ := out["connections"].([]any); len(conns) != 2 {
@@ -156,8 +156,8 @@ func TestProvidersClientProviderSort(t *testing.T) {
 	if len(conns) != 3 {
 		t.Fatalf("expected 3, got %d", len(conns))
 	}
-	// usageSupportedProviders order: codex < kimi < trae.
-	want := []string{"codex", "kimi", "trae"}
+	// usageSupportedProviders order: codebuddy-cn < codex < github.
+	want := []string{"codebuddy-cn", "codex", "github"}
 	for i, id := range want {
 		m, _ := conns[i].(map[string]any)
 		if m["provider"] != id {

@@ -119,13 +119,13 @@ func TestResolveModelEntry_AliasResolved(t *testing.T) {
 	repo := db.NewRepo(database)
 	h := NewChatHandler(repo)
 
-	// "ds" is an alias for "deepseek"
-	info := h.resolveModelEntry("ds/deepseek-chat")
+	// "nv" is an alias for "nvidia"
+	info := h.resolveModelEntry("nv/nemotron-3-ultra-550b-a55b")
 	if info == nil {
 		t.Fatal("expected non-nil ModelInfo for aliased provider")
 	}
-	if info.Provider != "deepseek" {
-		t.Errorf("expected provider 'deepseek' after alias resolution, got %s", info.Provider)
+	if info.Provider != "nvidia" {
+		t.Errorf("expected provider 'nvidia' after alias resolution, got %s", info.Provider)
 	}
 }
 
@@ -240,24 +240,24 @@ func TestResolveModel_CustomPrefix_NoConnections_ReportsNodeID(t *testing.T) {
 	database, cleanup := setupChatTestDB(t)
 	defer cleanup()
 
-	// Seed custom providerNode with prefix "oa", but NO connections anywhere
-	oaNodeData := `{"prefix":"oa","apiType":"openai-compatible","baseUrl":"https://custom-oa.example.com/v1"}`
+	// Seed custom providerNode with prefix "nv", but NO connections anywhere
+	nvNodeData := `{"prefix":"nv","apiType":"openai-compatible","baseUrl":"https://custom-nv.example.com/v1"}`
 	_, err := database.Exec(`INSERT INTO providerNodes (id, type, name, data, createdAt, updatedAt) VALUES
-		('openai-compatible-chat-f494', 'openai-compatible', 'Custom OA', ?, '2026-07-18T00:00:00Z', '2026-07-18T00:00:00Z')`, oaNodeData)
+		('openai-compatible-chat-f494', 'openai-compatible', 'Custom NV', ?, '2026-07-18T00:00:00Z', '2026-07-18T00:00:00Z')`, nvNodeData)
 	if err != nil {
-		t.Fatalf("seed providerNode oa: %v", err)
+		t.Fatalf("seed providerNode nv: %v", err)
 	}
 
 	repo := db.NewRepo(database)
 	h := NewChatHandler(repo)
 
-	// Since openai has no connections, resolveModel should pin to custom node ID
-	info, err := h.resolveModel("oa/deepseek-v4-flash")
+	// Since nvidia has no connections, resolveModel should pin to custom node ID
+	info, err := h.resolveModel("nv/deepseek-v4-flash")
 	if err != nil {
 		t.Fatalf("resolveModel error: %v", err)
 	}
 	if info.Provider != "openai-compatible-chat-f494" {
-		t.Errorf("expected provider 'openai-compatible-chat-f494' (not shadowed 'openai'), got %q", info.Provider)
+		t.Errorf("expected provider 'openai-compatible-chat-f494' (not shadowed 'nvidia'), got %q", info.Provider)
 	}
 }
 
@@ -484,15 +484,6 @@ func TestResolveModel_StandardPrefixes(t *testing.T) {
 	repo := db.NewRepo(database)
 	h := NewChatHandler(repo)
 
-	// oc/ prefix resolves to opencode
-	info1, err := h.resolveModel("oc/space-bunny-free")
-	if err != nil {
-		t.Fatalf("expected oc/space-bunny-free to resolve, got error: %v", err)
-	}
-	if info1.Provider != "opencode" || info1.Model != "space-bunny-free" {
-		t.Errorf("expected Provider=opencode, Model=space-bunny-free, got %+v", info1)
-	}
-
 	// ag/ prefix resolves to antigravity
 	info2, err := h.resolveModel("ag/gemini-3.8-flash-high")
 	if err != nil {
@@ -509,47 +500,5 @@ func TestResolveModel_StandardPrefixes(t *testing.T) {
 	}
 	if info3.Provider != "antigravity" || info3.Model != "gemini-3.8-flash" {
 		t.Errorf("expected Provider=antigravity, Model=gemini-3.8-flash, got %+v", info3)
-	}
-}
-
-func TestRouteModelToOwningProvider(t *testing.T) {
-	tests := []struct {
-		name     string
-		provider string
-		model    string
-		expected string
-	}{
-		{"muse-spark under antigravity routes to opencode", "antigravity", "muse-spark-1.3-contributor-free", "opencode"},
-		{"muse-spark under antigravity-go routes to opencode", "antigravity-go", "muse-spark-1.2-contributor", "opencode"},
-		{"native antigravity model untouched", "antigravity", "gemini-3.8-flash-low", "antigravity"},
-		{"muse-spark already under opencode untouched", "opencode", "muse-spark-1.3-contributor-free", "opencode"},
-		{"unrelated provider untouched", "openai", "gpt-4o", "openai"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := routeModelToOwningProvider(tt.provider, tt.model); got != tt.expected {
-				t.Errorf("routeModelToOwningProvider(%q, %q) = %q, want %q", tt.provider, tt.model, got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestResolveModel_AntigravityMuseSparkRoutesToOpencode(t *testing.T) {
-	database, cleanup := setupChatTestDB(t)
-	defer cleanup()
-	h := NewChatHandler(db.NewRepo(database))
-
-	info, err := h.resolveModel("ag/muse-spark-1.3-contributor-free")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if info.Provider != "opencode" || info.Model != "muse-spark-1.3-contributor-free" {
-		t.Fatalf("expected opencode/muse-spark-1.3-contributor-free, got %s/%s", info.Provider, info.Model)
-	}
-
-	entry := h.resolveModelEntry("ag/muse-spark-1.3-contributor-free")
-	if entry == nil || entry.Provider != "opencode" {
-		t.Fatalf("resolveModelEntry: expected opencode, got %+v", entry)
 	}
 }
