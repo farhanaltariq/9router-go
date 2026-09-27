@@ -9,7 +9,7 @@ import (
 // Matches the canonical schema shared with the Next.js dashboard.
 func SchemaStatements() []string {
 	return []string{
-		`CREATE TABLE apiKeys (
+		`CREATE TABLE IF NOT EXISTS apiKeys (
 			id TEXT PRIMARY KEY,
 			key TEXT UNIQUE NOT NULL,
 			name TEXT,
@@ -17,7 +17,7 @@ func SchemaStatements() []string {
 			isActive INTEGER DEFAULT 1,
 			createdAt TEXT NOT NULL
 		)`,
-		`CREATE TABLE providerConnections (
+		`CREATE TABLE IF NOT EXISTS providerConnections (
 			id TEXT PRIMARY KEY,
 			provider TEXT NOT NULL,
 			authType TEXT NOT NULL,
@@ -25,29 +25,32 @@ func SchemaStatements() []string {
 			email TEXT,
 			priority INTEGER,
 			isActive INTEGER DEFAULT 1,
+			testStatus TEXT,
+			lastError TEXT,
 			data TEXT NOT NULL,
 			createdAt TEXT NOT NULL,
 			updatedAt TEXT NOT NULL
 		)`,
-		`CREATE TABLE kv (
+		`CREATE TABLE IF NOT EXISTS kv (
 			scope TEXT NOT NULL,
 			key TEXT NOT NULL,
 			value TEXT NOT NULL,
 			PRIMARY KEY (scope, key)
 		)`,
-		`CREATE TABLE combos (
+		`CREATE TABLE IF NOT EXISTS combos (
 			id TEXT PRIMARY KEY,
 			name TEXT UNIQUE NOT NULL,
 			kind TEXT,
 			models TEXT NOT NULL,
+			strategy TEXT,
 			createdAt TEXT NOT NULL,
 			updatedAt TEXT NOT NULL
 		)`,
-		`CREATE TABLE settings (
+		`CREATE TABLE IF NOT EXISTS settings (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
 			data TEXT NOT NULL
 		)`,
-		`CREATE TABLE providerNodes (
+		`CREATE TABLE IF NOT EXISTS providerNodes (
 			id TEXT PRIMARY KEY,
 			type TEXT,
 			name TEXT,
