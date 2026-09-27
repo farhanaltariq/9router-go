@@ -25,7 +25,43 @@ Open `http://localhost:20130` after starting an existing, initialized 9router da
 - Bidirectional request/response translation, streamed SSE handling, usage capture, live usage/console streams, and stall detection
 - SQLite WAL persistence, proxy pools, outbound proxy support, token-saver options, self-update, MITM commands, Docker, and cross-compilation
 
-Detailed routing and provider behavior is documented in [`ARCHITECTURE.md`](ARCHITECTURE.md). Schema details and compatibility notes are in [`DATABASE.md`](DATABASE.md).
+Detailed routing and provider behavior is documented in [`docs/human/ARCHITECTURE.md`](docs/human/ARCHITECTURE.md). Schema details and compatibility notes are in [`docs/human/DATABASE.md`](docs/human/DATABASE.md). Release history is in [`docs/human/CHANGELOG.md`](docs/human/CHANGELOG.md). AI agent rules are located in [`docs/agents/AGENTS.md`](docs/agents/AGENTS.md) and [`docs/agents/CLAUDE.md`](docs/agents/CLAUDE.md).
+
+## Repository Structure
+
+```text
+9router-go/
+├── backend/               # Native Go proxy core, CLI, & embedded distribution
+│   ├── cmd/9router-go/    # Main binary entrypoint & daemon runner
+│   ├── internal/          # Domain services (handlers, proxy, providers, db, etc.)
+│   ├── web/               # Embedded web distribution (embed.go & dist/)
+│   ├── go.mod             # Go module definition (9router/proxy)
+│   └── go.sum
+├── frontend/              # Svelte 5 + Vite 8 SPA Dashboard
+│   ├── src/               # Svelte 5 runes components, stores, & API clients
+│   ├── public/            # Static icons and assets
+│   ├── package.json       # Frontend scripts and dependencies (Bun)
+│   └── vite.config.ts     # Vite configuration (compiles to backend/web/dist)
+├── docs/
+│   ├── agents/            # Specifications & guidelines for AI coding agents
+│   │   ├── AGENTS.md      # Team engineering & parity instructions
+│   │   └── CLAUDE.md      # Claude instructions & workflows
+│   └── human/             # Technical specifications & references for humans
+│       ├── ARCHITECTURE.md# System architecture, routing & executor pipelines
+│       ├── DATABASE.md    # SQLite schemas, compatibility & query designs
+│       ├── CHANGELOG.md   # Version releases & parity sync tracking
+│       ├── COMPARISON.md  # Upstream architecture comparison
+│       ├── ROADMAP.md     # Development roadmap and proposals
+│       ├── TECHNICAL_DEBT.md
+│       ├── BUILD_DASHBOARD.md
+│       └── DASHBOARD_PROVIDER_PARITY.md
+├── benchmark/             # Performance benchmarks & upstream comparison
+├── scripts/               # Automation scripts (version bump, verification)
+├── Makefile               # Universal build & orchestration targets
+├── Dockerfile             # Multi-stage production container build
+├── go.work                # Go workspace configuration
+└── README.md              # Project overview & documentation entrypoint
+```
 
 ## Install
 
@@ -56,14 +92,14 @@ The bundled compose file persists `/data` in the `9router-data` volume. The imag
 
 ### Build from source
 
-Prerequisites: Go 1.27 and Bun 1.x. The Go package embeds `web/dist`, so build the dashboard before compiling the binary.
+Prerequisites: Go 1.27 and Bun 1.x. The Go package embeds `backend/web/dist`, so build the dashboard before compiling the binary.
 
 ```bash
 git clone https://github.com/luqman-v1/9router-go.git
 cd 9router-go
 
-make web-build       # bun install --frozen-lockfile && bun run build
-make build           # embeds VERSION into the Go binary
+make web-build       # builds frontend/ SPA into backend/web/dist
+make build           # compiles backend/ into single binary 9router-go
 ```
 
 Rebuild dashboard assets after frontend changes:
@@ -73,7 +109,7 @@ FORCE=1 make web-build
 make build
 ```
 
-`go build` alone is sufficient only when a current `web/dist/index.html` already exists.
+`make build` compiles `backend/` using Go workspaces (`go.work`) with version metadata embedded.
 
 ## Run
 
@@ -194,22 +230,22 @@ The `DB_PATH` resolver recognizes a directory containing `db/data.sqlite`, `data
 The CI workflow is the release contract for pushes and pull requests:
 
 ```bash
-make web-build   # Bun 1.4.2, frozen lockfile
-go vet ./...
-go test ./... -v
-go build -ldflags='-s -w' -o /tmp/9router-go ./cmd/9router-go/
+make web-build   # Bun 1.4.2, frozen lockfile from frontend/
+make vet         # runs go vet on backend
+make test-short  # runs unit tests on backend
+make build       # compiles binary into ./9router-go
 ```
 
 For local development of the dashboard:
 
 ```bash
-cd web
+cd frontend
 bun install --frozen-lockfile
 bun run dev       # Vite dev server; run the Go server on :20130 separately
 bun run lint
 ```
 
-The web package currently has no frontend unit/component test script. Validate dashboard changes against a running Go server and the affected browser route. `make test-short` runs `go test ./...`; `make vet` runs `go vet ./...`; `make cross` builds release binaries and checksums.
+The frontend package currently defines development, build, lint, and preview scripts. Validate dashboard changes against a running Go server and the affected browser route. `make test-short` runs `cd backend && go test -short ./...`; `make vet` runs `cd backend && go vet ./...`; `make cross` builds release binaries and checksums.
 
 ## Operational caveats
 
@@ -223,7 +259,7 @@ The web package currently has no frontend unit/component test script. Validate d
 
 ## Roadmap
 
-See [`ROADMAP.md`](ROADMAP.md) for proposals only. Items there are not current behavior.
+See [`docs/human/ROADMAP.md`](docs/human/ROADMAP.md) for proposals only. Items there are not current behavior.
 
 ## Credits
 

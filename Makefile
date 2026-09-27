@@ -12,16 +12,16 @@ LDFLAGS := -s -w -X '9router/proxy/internal/updater.CurrentVersion=$(VERSION)'
 
 .PHONY: build run dev version update test test-short vet bench bench-go cross mitm-enable mitm-disable mitm-status docker docker-build clean help web-build
 
-## web-build — build frontend static assets (Svelte/Vite) into web/dist
+## web-build — build frontend static assets (Svelte 5/Vite 8) into backend/web/dist
 web-build:
-	@if [ ! -f web/dist/index.html ] || [ "$$FORCE" = "1" ]; then \
-		echo "Building web SPA assets..."; \
-		cd web && bun install --frozen-lockfile && bun run build; \
+	@if [ ! -f backend/web/dist/index.html ] || [ "$$FORCE" = "1" ]; then \
+		echo "Building web SPA assets from frontend/..."; \
+		cd frontend && bun install --frozen-lockfile && bun run build; \
 	fi
 
-## build — compile binary with version embedding
+## build — compile binary with embedded version & SPA assets
 build: web-build
-	go build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) ./cmd/9router-go/
+	cd backend && go build -ldflags="$(LDFLAGS)" -o ../$(BINARY_NAME) ./cmd/9router-go/
 
 ## run — start proxy (PORT=20130)
 run: build
@@ -29,7 +29,7 @@ run: build
 
 ## dev — start with go run (auto-rebuild)
 dev:
-	PORT=$(PORT) DATA_DIR=$(DATA_DIR) go run -ldflags="$(LDFLAGS)" ./cmd/9router-go/ $(if $(RTK),--rtk=$(RTK)) $(if $(CAVEMAN),--caveman=$(CAVEMAN)) $(if $(PONYTAIL),--ponytail=$(PONYTAIL)) --auto-update=$(AUTO_UPDATE)
+	PORT=$(PORT) DATA_DIR=$(DATA_DIR) go run -ldflags="$(LDFLAGS)" ./backend/cmd/9router-go/ $(if $(RTK),--rtk=$(RTK)) $(if $(CAVEMAN),--caveman=$(CAVEMAN)) $(if $(PONYTAIL),--ponytail=$(PONYTAIL)) --auto-update=$(AUTO_UPDATE)
 
 ## version — display binary version info
 version: build
@@ -39,17 +39,21 @@ version: build
 update: build
 	./$(BINARY_NAME) update
 
-## test — run all unit tests
+## test — run all backend unit tests
 test:
-	go test ./... -v
+	cd backend && go test -short ./... -v
 
-## test-short — run tests (quiet)
+## test-short — run backend tests (quiet)
 test-short:
-	go test ./...
+	cd backend && go test -short ./...
+
+## test-live — run live upstream integration tests
+test-live:
+	cd backend && go test ./... -v
 
 ## vet — run go vet static analysis
 vet:
-	go vet ./...
+	cd backend && go vet ./...
 
 ## bench — run bash comparison benchmark
 bench: build
@@ -57,15 +61,15 @@ bench: build
 
 ## bench-go — run native Go high-throughput benchmark
 bench-go:
-	go run ./benchmark/runner.go
+	cd backend && go run ../benchmark/runner.go
 
 ## cross — cross-compile Linux/macOS/Windows release binaries
 cross: web-build
-	GOOS=linux GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/9router-go/
-	GOOS=linux GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-linux-arm64 ./cmd/9router-go/
-	GOOS=darwin GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-amd64 ./cmd/9router-go/
-	GOOS=darwin GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-arm64 ./cmd/9router-go/
-	GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-windows-amd64.exe ./cmd/9router-go/
+	cd backend && GOOS=linux GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o ../$(BINARY_NAME)-linux-amd64 ./cmd/9router-go/
+	cd backend && GOOS=linux GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o ../$(BINARY_NAME)-linux-arm64 ./cmd/9router-go/
+	cd backend && GOOS=darwin GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o ../$(BINARY_NAME)-darwin-amd64 ./cmd/9router-go/
+	cd backend && GOOS=darwin GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o ../$(BINARY_NAME)-darwin-arm64 ./cmd/9router-go/
+	cd backend && GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o ../$(BINARY_NAME)-windows-amd64.exe ./cmd/9router-go/
 	@ls -lh $(BINARY_NAME)-*
 	@(sha256sum $(BINARY_NAME)-linux-amd64 $(BINARY_NAME)-linux-arm64 $(BINARY_NAME)-darwin-amd64 $(BINARY_NAME)-darwin-arm64 $(BINARY_NAME)-windows-amd64.exe 2>/dev/null || shasum -a 256 $(BINARY_NAME)-linux-amd64 $(BINARY_NAME)-linux-arm64 $(BINARY_NAME)-darwin-amd64 $(BINARY_NAME)-darwin-arm64 $(BINARY_NAME)-windows-amd64.exe) > SHA256SUMS.txt
 	@cat SHA256SUMS.txt
@@ -93,7 +97,7 @@ docker-build:
 ## clean — remove build artifacts
 clean:
 	rm -f $(BINARY_NAME) $(BINARY_NAME)-*
-	rm -rf web/dist
+	rm -rf backend/web/dist frontend/dist
 
 ## help — show targets
 help:

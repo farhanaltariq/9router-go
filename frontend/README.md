@@ -37,7 +37,7 @@ bun run preview   # serve the production bundle locally
 
 ## Production Integration
 
-`bun run build` writes static assets to `web/dist`. `web/embed.go` embeds that directory with Go's `embed` package, and the compiled Go binary serves the files through `web.Handler()`. The handler serves existing assets directly and falls back to `index.html` for client-side routes, so production needs no separate web server.
+`bun run build` writes static assets to `backend/web/dist`. `backend/web/embed.go` embeds that directory with Go's `embed` package, and the compiled Go binary serves the files through `web.Handler()`. The handler serves existing assets directly and falls back to `index.html` for client-side routes, so production needs no separate web server.
 
 Build the frontend and binary together from the repository root:
 
@@ -46,7 +46,7 @@ make web-build
 make build
 ```
 
-`make build` runs `web-build` first, but the target skips installation/build when `web/dist/index.html` already exists. Use `FORCE=1 make web-build` after frontend changes so fresh assets are embedded.
+`make build` runs `web-build` first, but the target skips installation/build when `backend/web/dist/index.html` already exists. Use `FORCE=1 make web-build` after frontend changes so fresh assets are embedded.
 
 ## Testing and Caveats
 
