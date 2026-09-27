@@ -28,6 +28,8 @@ docker-compose.local.yml
 # Editor / OS
 .idea/
 .vscode/
+.zed/
+.tool-versions
 .DS_Store
 graphify-out
 node_modules/
