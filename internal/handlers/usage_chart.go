@@ -146,6 +146,32 @@ func HandleUsageChart(repo *db.Repo) http.HandlerFunc {
 				}
 			}
 
+			// Complement with usageHistory for dates where usageDaily might be missing or under-reported
+			cutoffStr := startDate.UTC().Format(time.RFC3339)
+			if histRows, err := repo.GetUsageHistorySince(cutoffStr); err == nil {
+				histMap := make(map[string]struct {
+					tokens int64
+					cost   float64
+				})
+				for _, row := range histRows {
+					t, err := time.Parse(time.RFC3339, row.Timestamp)
+					if err != nil {
+						continue
+					}
+					dateKey := t.In(now.Location()).Format("2006-01-02")
+					cur := histMap[dateKey]
+					cur.tokens += int64(row.PromptTokens + row.CompletionTokens)
+					cur.cost += row.Cost
+					histMap[dateKey] = cur
+				}
+				for k, v := range histMap {
+					existing, exists := dayMap[k]
+					if !exists || existing.tokens < v.tokens {
+						dayMap[k] = v
+					}
+				}
+			}
+
 			points := make([]ChartPoint, bucketCount)
 			for i := 0; i < bucketCount; i++ {
 				d := startDate.AddDate(0, 0, i)

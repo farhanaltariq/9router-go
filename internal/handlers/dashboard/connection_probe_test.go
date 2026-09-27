@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	json "encoding/json/v2"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"9router/proxy/internal/db"
+	internalproxy "9router/proxy/internal/proxy"
 	"9router/proxy/internal/proxy/oauth"
 )
 
@@ -493,5 +495,111 @@ func TestHandleTestConnectionReadsRequestBody(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleTestConnection_EdgeRelay(t *testing.T) {
+	repo, cleanup := setupProbeTestDB(t)
+	defer cleanup()
+
+	// Create a cloudflare relay proxy pool
+	if _, err := repo.RawDB().Exec(`CREATE TABLE IF NOT EXISTS proxyPools (
+		id TEXT PRIMARY KEY,
+		isActive INTEGER DEFAULT 1,
+		testStatus TEXT,
+		data TEXT NOT NULL,
+		createdAt TEXT NOT NULL,
+		updatedAt TEXT NOT NULL
+	);`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+	poolData := `{"name":"cf-relay","type":"cloudflare","proxyUrl":"https://relay.workers.dev"}`
+	if _, err := repo.RawDB().Exec(
+		`INSERT INTO proxyPools (id, isActive, testStatus, data, createdAt, updatedAt) VALUES (?, 1, 'active', ?, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+		"pool-cf", poolData,
+	); err != nil {
+		t.Fatalf("create proxy pool: %v", err)
+	}
+
+	// Create connection bound to the pool
+	connData := `{"apiKey":"sk-test","providerSpecificData":{"proxyPoolId":"pool-cf","baseUrl":"https://api.openai.com/v1"}}`
+	if err := repo.CreateProviderConnectionFull("conn-relay", "openai-compatible-node", "compatible", "OpenAI Relayed", nil, connData); err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+
+	origDo := connectionProbeDo
+	var gotURL, gotTarget, gotPath string
+	connectionProbeDo = func(ctx context.Context, client *http.Client, method, rawURL string, headers map[string]string, body []byte) (int, []byte, error) {
+		gotURL = rawURL
+		if relay := probeRelayURL(ctx); relay != "" {
+			reqHeaders := internalproxy.BuildEdgeRelayHeaders(rawURL, headers)
+			gotURL = relay
+			gotTarget = reqHeaders["x-relay-target"]
+			gotPath = reqHeaders["x-relay-path"]
+		}
+		return 200, []byte(`{"data":[]}`), nil
+	}
+	defer func() { connectionProbeDo = origDo }()
+
+	router := setupTestRouter(repo)
+	req := httptest.NewRequest(http.MethodPost, "/api/providers/conn-relay/test", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if gotURL != "https://relay.workers.dev" {
+		t.Errorf("expected URL rewritten to relay, got %s", gotURL)
+	}
+	if gotTarget != "https://api.openai.com" {
+		t.Errorf("expected x-relay-target https://api.openai.com, got %s", gotTarget)
+	}
+	if gotPath != "/v1/models" {
+		t.Errorf("expected x-relay-path /v1/models, got %s", gotPath)
+	}
+}
+
+func TestHandleTestConnection_AntigravityUserinfoFallback(t *testing.T) {
+	repo, cleanup := setupProbeTestDB(t)
+	defer cleanup()
+
+	connData := `{"accessToken":"valid-token","refreshToken":"refresh-token"}`
+	if err := repo.CreateProviderConnectionFull("conn-ag-fallback", "antigravity", "oauth", "Antigravity", nil, connData); err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+
+	origDo := connectionProbeDo
+	var probedURLs []string
+	connectionProbeDo = func(ctx context.Context, client *http.Client, method, rawURL string, headers map[string]string, body []byte) (int, []byte, error) {
+		probedURLs = append(probedURLs, rawURL)
+		if strings.Contains(rawURL, "loadCodeAssist") {
+			// Simulate dial tcp 127.0.0.1:443 connection refused
+			return 0, nil, fmt.Errorf("dial tcp 127.0.0.1:443: connect: connection refused")
+		}
+		if strings.Contains(rawURL, "oauth2/v1/userinfo") {
+			return 200, []byte(`{"id":"123","email":"test@example.com"}`), nil
+		}
+		return 404, nil, fmt.Errorf("not found")
+	}
+	defer func() { connectionProbeDo = origDo }()
+
+	router := setupTestRouter(repo)
+	req := httptest.NewRequest(http.MethodPost, "/api/providers/conn-ag-fallback/test", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var res map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+	if res["valid"] != true {
+		t.Errorf("expected valid true on userinfo fallback, got %v", res)
+	}
+	if len(probedURLs) < 2 {
+		t.Errorf("expected at least 2 probed URLs (code assist then userinfo), got %v", probedURLs)
 	}
 }

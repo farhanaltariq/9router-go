@@ -10,9 +10,11 @@
 
   interface Props {
     period?: string
+    class?: string
+    style?: string
   }
 
-  let { period = '7d' }: Props = $props()
+  let { period = '7d', class: klass = '', style = '' }: Props = $props()
 
   let data = $state<ChartPoint[]>([])
   let loading = $state(true)
@@ -56,12 +58,12 @@
 
   let hasData = $derived(data.some((d) => (d.tokens || 0) > 0 || (d.cost || 0) > 0))
 
-  const width = 600
-  const height = 180
-  const padLeft = 48
-  const padRight = 16
-  const padTop = 16
-  const padBottom = 28
+  const width = 800
+  const height = 340
+  const padLeft = 56
+  const padRight = 24
+  const padTop = 20
+  const padBottom = 34
   const plotWidth = width - padLeft - padRight
   const plotHeight = height - padTop - padBottom
 
@@ -72,11 +74,12 @@
     return m === 0 ? 1 : m
   })
 
-  // Y axis ticks (0, 33%, 66%, 100%)
+  // Y axis ticks (0, 25%, 50%, 75%, 100%)
   let yTicks = $derived([
     { val: maxVal, y: padTop },
-    { val: maxVal * 0.66, y: padTop + plotHeight * 0.34 },
-    { val: maxVal * 0.33, y: padTop + plotHeight * 0.67 },
+    { val: maxVal * 0.75, y: padTop + plotHeight * 0.25 },
+    { val: maxVal * 0.5, y: padTop + plotHeight * 0.5 },
+    { val: maxVal * 0.25, y: padTop + plotHeight * 0.75 },
     { val: 0, y: padTop + plotHeight },
   ])
 
@@ -132,10 +135,22 @@
   function handleMouseLeave() {
     hoverIdx = null
   }
+
+  function shouldShowXLabel(i: number, total: number): boolean {
+    if (i === 0 || i === total - 1) return true
+    if (total <= 8) return true // 7d: show all days
+    if (total <= 24) return i % 4 === 0 // 24h / today: every 4 hours
+    if (total <= 31) return i % 5 === 0 // 30d: every 5 days
+    return i % 10 === 0 // 60d: every 10 days
+  }
 </script>
 
-<Card padding="none" class="flex min-w-0 flex-col overflow-hidden bg-surface border border-border-subtle rounded-[14px]">
-  <div class="px-4 py-3 border-b border-border-subtle flex items-center justify-between">
+<Card
+  padding="none"
+  class="flex min-w-0 flex-col overflow-hidden bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] h-full {klass}"
+  style={style}
+>
+  <div class="px-4 py-3 border-b border-border-subtle flex items-center justify-between shrink-0">
     <div class="flex items-center gap-2">
       <span class="material-symbols-outlined text-[18px] text-primary">show_chart</span>
       <span class="text-sm font-semibold text-text-main">Usage</span>
@@ -162,25 +177,26 @@
     </div>
   </div>
 
-  <div class="p-4 relative">
+  <div class="p-4 flex-1 flex flex-col justify-between min-h-0 relative">
     {#if loading}
-      <div class="h-44 flex items-center justify-center text-text-muted text-sm gap-2">
+      <div class="flex-1 min-h-[300px] flex items-center justify-center text-text-muted text-sm gap-2">
         <span class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
         <span>Loading chart...</span>
       </div>
     {:else if !hasData}
-      <div class="h-44 flex items-center justify-center text-text-muted text-sm">
-        No usage data recorded for this period
+      <div class="flex-1 min-h-[300px] flex flex-col items-center justify-center text-text-muted text-sm gap-1.5">
+        <span class="material-symbols-outlined text-[28px] opacity-40">query_stats</span>
+        <span>No usage data recorded for this period</span>
       </div>
     {:else}
       <div
-        class="relative w-full overflow-hidden select-none"
+        class="relative w-full h-full flex-1 flex flex-col justify-center overflow-hidden select-none"
         onmousemove={handleMouseMove}
         onmouseleave={handleMouseLeave}
         role="region"
         aria-label="Usage chart"
       >
-        <svg viewBox="0 0 {width} {height}" class="w-full h-44 overflow-visible">
+        <svg viewBox="0 0 {width} {height}" class="w-full h-full min-h-[300px] overflow-visible">
           <defs>
             <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
               <stop
@@ -230,35 +246,20 @@
             stroke-linejoin="round"
           />
 
-          <!-- X axis labels (first, middle, last) -->
+          <!-- X axis labels (evenly distributed) -->
           {#if points.length > 0}
-            <text
-              x={points[0].x}
-              y={height - 6}
-              text-anchor="start"
-              class="text-[10px] fill-text-muted/70 font-mono"
-            >
-              {points[0].label}
-            </text>
-            {#if points.length > 2}
-              {@const midIdx = Math.floor(points.length / 2)}
-              <text
-                x={points[midIdx].x}
-                y={height - 6}
-                text-anchor="middle"
-                class="text-[10px] fill-text-muted/70 font-mono"
-              >
-                {points[midIdx].label}
-              </text>
-            {/if}
-            <text
-              x={points[points.length - 1].x}
-              y={height - 6}
-              text-anchor="end"
-              class="text-[10px] fill-text-muted/70 font-mono"
-            >
-              {points[points.length - 1].label}
-            </text>
+            {#each points as p, i}
+              {#if shouldShowXLabel(i, points.length)}
+                <text
+                  x={p.x}
+                  y={height - 8}
+                  text-anchor={i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'}
+                  class="text-[10px] fill-text-muted/70 font-mono select-none"
+                >
+                  {p.label}
+                </text>
+              {/if}
+            {/each}
           {/if}
 
           <!-- Hover Indicator Dot -->
@@ -287,9 +288,13 @@
         <!-- Hover Tooltip -->
         {#if hoverIdx !== null && points[hoverIdx]}
           {@const hp = points[hoverIdx]}
+          {@const isNearTop = hp.y < 60}
+          {@const isLeftEdge = hoverIdx === 0}
+          {@const isRightEdge = hoverIdx === points.length - 1}
+          {@const xTransform = isLeftEdge ? 'translate-x-1' : isRightEdge ? '-translate-x-[calc(100%-4px)]' : '-translate-x-1/2'}
           <div
-            class="absolute pointer-events-none z-20 px-2.5 py-1.5 rounded-lg bg-surface border border-border-subtle shadow-xl text-xs flex flex-col gap-0.5 -translate-x-1/2 -translate-y-full mb-2"
-            style="left: {(hp.x / width) * 100}%; top: {Math.max(16, (hp.y / height) * 100)}%;"
+            class="absolute pointer-events-none z-20 px-2.5 py-1.5 rounded-lg bg-surface border border-border shadow-xl text-xs flex flex-col gap-0.5 {xTransform} {isNearTop ? 'translate-y-3' : '-translate-y-full -mt-2'}"
+            style="left: {(hp.x / width) * 100}%; top: {(hp.y / height) * 100}%;"
           >
             <span class="text-[10px] text-text-muted font-mono">{hp.label}</span>
             <span class="font-semibold text-text-main">

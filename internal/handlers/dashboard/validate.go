@@ -16,6 +16,7 @@ import (
 	"9router/proxy/internal/handlerutil"
 	"9router/proxy/internal/models"
 	"9router/proxy/internal/providers"
+	internalproxy "9router/proxy/internal/proxy"
 )
 
 // validateProbeTimeout mirrors upstream's AbortSignal.timeout(8000) on probes.
@@ -35,9 +36,7 @@ func withProbeClient(ctx context.Context, client *http.Client) context.Context {
 }
 
 var directProbeClient = &http.Client{
-	Transport: &http.Transport{
-		Proxy: nil, // direct connection to bypass proxy allowlist
-	},
+	Transport: internalproxy.NewDirectTransport(),
 }
 
 func isProxyFailure(err error, resp *http.Response) bool {

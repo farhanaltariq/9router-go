@@ -116,7 +116,7 @@ func (h *DashboardHandler) HandleUpdateSettings(w http.ResponseWriter, r *http.R
 
 // HandleExportDatabase handles GET /api/settings/database (backup download).
 func (h *DashboardHandler) HandleExportDatabase(w http.ResponseWriter, r *http.Request) {
-	if !trustedRequest(r) && !h.verifyDashboardPassword(r.Header.Get(passwordHeader)) && !auth.SessionValid(r) {
+	if !trustedRequest(r) && !h.verifyDashboardPassword(r.Header.Get(passwordHeader)) && !auth.SessionValid(r) && auth.RequireLogin(h.Repo) {
 		writePlainError(w, http.StatusUnauthorized, "Invalid password")
 		return
 	}
@@ -147,7 +147,7 @@ func (h *DashboardHandler) HandleImportDatabase(w http.ResponseWriter, r *http.R
 	password, _ := payload["password"].(string)
 	delete(payload, "password")
 
-	if !trustedRequest(r) && !h.verifyDashboardPassword(password) && !auth.SessionValid(r) {
+	if !trustedRequest(r) && !h.verifyDashboardPassword(password) && !auth.SessionValid(r) && auth.RequireLogin(h.Repo) {
 		writePlainError(w, http.StatusUnauthorized, "Invalid password")
 		return
 	}
@@ -508,11 +508,14 @@ func (h *DashboardHandler) importDatabase(payload map[string]any) error {
 			models = []byte("[]")
 		}
 		if _, err := tx.Exec(
-			`INSERT OR REPLACE INTO combos(id, name, kind, models, strategy, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT OR REPLACE INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
 			c["id"], c["name"], stringDefault(c["kind"], nil), string(models),
-			stringDefault(c["strategy"], nil), stringDefault(c["createdAt"], nowISO()), stringDefault(c["updatedAt"], nowISO()),
+			stringDefault(c["createdAt"], nowISO()), stringDefault(c["updatedAt"], nowISO()),
 		); err != nil {
 			return err
+		}
+		if strat, ok := c["strategy"].(string); ok && strat != "" {
+			_, _ = tx.Exec(`UPDATE combos SET strategy = ? WHERE id = ?`, strat, c["id"])
 		}
 	}
 

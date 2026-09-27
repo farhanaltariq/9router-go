@@ -323,8 +323,10 @@ func (h *ChatHandler) AugmentModelsWithCapacityAdapter(models []string, required
 				if len(candModels) == 0 {
 					if cap == "vision" {
 						candModels = []string{"ag/gemini-3.8-flash-high"}
+					} else if cap == "reasoning" {
+						candModels = []string{"ag/gemini-2.5-pro-exp-06-05"}
 					} else {
-						candModels = []string{"oc/mimo-v2.6-flash-free"}
+						candModels = []string{"ag/gemini-2.5-flash"}
 					}
 				}
 				for _, m := range candModels {
@@ -536,16 +538,11 @@ func (h *ChatHandler) handleComboFallback(ctx context.Context, w http.ResponseWr
 				}
 
 				var fwdErr error
-				if modelInfo.Provider == "mimo-free" {
-					comboMetrics := &streamMetrics{}
-					fwdErr = h.MimoFreeChat(ctx, cw, upstreamJSON, isStream, comboMetrics)
-				} else {
-					fwdErr = h.tryForwardWithConnection(forwardRequestParams{
+				fwdErr = h.tryForwardWithConnection(forwardRequestParams{
 						Ctx: ctx, W: cw, Provider: modelInfo.Provider, Model: modelInfo.Model,
 						ConnectionID: connID, ConnData: connData, Body: upstreamJSON,
 						IsStream: isStream, TranslateResponse: translateResponse, Endpoint: "/v1/chat/completions",
 					})
-				}
 
 				if fwdErr != nil {
 					if ctx.Err() != nil {

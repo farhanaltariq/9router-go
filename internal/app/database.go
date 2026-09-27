@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"go.uber.org/fx"
 
@@ -26,6 +27,13 @@ var DatabaseModule = fx.Module("database",
 
 // ProvideDatabase initializes the global SQLite database and registers an OnStop lifecycle hook to close it cleanly.
 func ProvideDatabase(lc fx.Lifecycle, cfg *config.Config) (*sql.DB, error) {
+	// Clean up orphaned WAL/SHM files only if the main DB file does not exist.
+	if _, err := os.Stat(cfg.DatabasePath); os.IsNotExist(err) {
+		for _, ext := range []string{"-wal", "-shm"} {
+			_ = os.Remove(cfg.DatabasePath + ext)
+		}
+	}
+
 	if err := db.InitGlobalDatabase(cfg.DatabasePath); err != nil {
 		return nil, fmt.Errorf("database init: %w", err)
 	}
@@ -33,12 +41,6 @@ func ProvideDatabase(lc fx.Lifecycle, cfg *config.Config) (*sql.DB, error) {
 	conn, err := db.GetConnection()
 	if err != nil {
 		return nil, fmt.Errorf("database connect: %w", err)
-	}
-
-	// Clean up orphaned WAL/SHM files from previous runs (fresh DB after rm data.sqlite).
-	// These can cause schema mismatches or stale-state reads.
-	for _, ext := range []string{"-wal", "-shm"} {
-		_ = os.Remove(cfg.DatabasePath + ext)
 	}
 
 	// Auto-create dashboard tables if missing (fresh DB or after manual deletion).
@@ -140,8 +142,11 @@ func cleanupStaleProviderNodes(conn *sql.DB) error {
 		}
 		prefix, _ := data["prefix"].(string)
 		apiType, _ := data["apiType"].(string)
+		nodeType, _ := data["type"].(string)
 		// Keep OpenAI/Anthropic-compatible custom nodes.
-		if apiType == "openai-compatible" || apiType == "anthropic-compatible" {
+		if nodeType == "openai-compatible" || nodeType == "anthropic-compatible" ||
+			apiType == "openai-compatible" || apiType == "anthropic-compatible" ||
+			strings.HasPrefix(id, "openai-compatible-") || strings.HasPrefix(id, "anthropic-compatible-") {
 			continue
 		}
 		// Resolve alias to canonical provider ID.

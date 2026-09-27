@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	dbInstance *sql.DB
-	dbOnce     sync.Once
-	initErr    error
+	dbMu        sync.Mutex
+	dbInstance  *sql.DB
+	currentPath string
+	initErr     error
 )
 
 // OpenDatabase opens a SQLite database and configures it with WAL mode, normal synchronous mode,
@@ -70,14 +71,27 @@ PRAGMA busy_timeout = 5000;
 
 // InitGlobalDatabase initializes the global database connection instance.
 func InitGlobalDatabase(path string) error {
-	dbOnce.Do(func() {
-		dbInstance, initErr = OpenDatabase(path)
-	})
+	dbMu.Lock()
+	defer dbMu.Unlock()
+	if dbInstance != nil && currentPath == path {
+		if err := dbInstance.Ping(); err == nil {
+			return nil
+		}
+		_ = dbInstance.Close()
+		dbInstance = nil
+	} else if dbInstance != nil {
+		_ = dbInstance.Close()
+		dbInstance = nil
+	}
+	currentPath = path
+	dbInstance, initErr = OpenDatabase(path)
 	return initErr
 }
 
 // GetConnection returns the global database connection.
 func GetConnection() (*sql.DB, error) {
+	dbMu.Lock()
+	defer dbMu.Unlock()
 	if dbInstance == nil {
 		return nil, errors.New("database not initialized, call InitGlobalDatabase first")
 	}

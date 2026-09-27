@@ -256,7 +256,7 @@ func sanitizeProviderConnection(c *models.ProviderConnection) map[string]any {
 		// badges (⏱), quota/rate-limit panels, model assignment. Secret
 		// keys (apiKey/accessToken/refreshToken/authToken/...) stay dropped.
 		"backoffLevel", "rateLimitedUntil", "rateLimit", "rateLimitsByModel",
-		"freebuffModel", "assignedModel", "freebucks",
+		"assignedModel",
 	} {
 		if v, ok := data[f]; ok && v != nil {
 			safe[f] = v

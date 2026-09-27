@@ -3,7 +3,6 @@
   import { Loader2 } from 'lucide-svelte'
   import {
     api,
-    isAuthenticated,
     type APIKey,
     type Combo,
     type ProviderConnection,
@@ -17,7 +16,6 @@
   import CombosView from './components/combos/CombosView.svelte'
   import ConnectionsView from './components/connections/ConnectionsView.svelte'
   import OAuthCallbackView from './components/connections/OAuthCallbackView.svelte'
-  import EndpointView from './components/EndpointView.svelte'
   import LoginView from './components/LoginView.svelte'
   import MediaKindView from './components/media/MediaKindView.svelte'
   import MediaProviderDetail from './components/media/MediaProviderDetail.svelte'
@@ -26,7 +24,6 @@
   import MediaWebView from './components/media/MediaWebView.svelte'
   import QuotaTrackerView from './components/QuotaTrackerView.svelte'
   import SkillsView from './components/SkillsView.svelte'
-  import SettingsView from './components/SettingsView.svelte'
   import Sidebar from './components/Sidebar.svelte'
   import Toasts from './lib/ui/Toasts.svelte'
   import TerminalView from './components/TerminalView.svelte'
@@ -243,10 +240,6 @@
     keys: { title: 'CLI & Remote Access', description: 'API keys for your CLI tools' },
   }
 
-  function handleOpenNewCombo() {
-    navigate('combos')
-    isCreateComboOpen = true
-  }
 </script>
 
 {#if isOAuthCallback}

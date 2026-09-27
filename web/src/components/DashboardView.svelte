@@ -351,7 +351,7 @@
 
       <!-- 2. Usage chart + Recent requests -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-        <UsageChart {period} />
+        <UsageChart {period} class="h-full" style="height: 480px;" />
 
         <!-- Recent Requests Card (Matches exact upstream DOM/CSS) -->
         <div

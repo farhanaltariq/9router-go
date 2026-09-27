@@ -172,12 +172,7 @@ func (h *MediaHandler) HandleAudioSpeech(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer r.Body.Close()
-	// Xiaomi MiMo TTS uses a chat-completions contract, not the OpenAI
-	// /audio/speech shape (port of open-sse/handlers/ttsProviders/xiaomi-mimo.js).
-	if h.isMiMoSpeech(body) {
-		h.forwardMiMoSpeech(w, r, body)
-		return
-	}
+	// Forward to default TTS handler.
 	h.forwardTTSRequest(w, r, body)
 }
 

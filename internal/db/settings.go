@@ -30,22 +30,22 @@ type CapacityAdapterEntry struct {
 
 // SettingsData represents token saver, combo routing, and general settings stored in the settings table.
 type SettingsData struct {
-	RTKEnabled                 bool                        `json:"rtkEnabled"`
-	CavemanEnabled             bool                        `json:"cavemanEnabled"`
-	CavemanLevel               string                      `json:"cavemanLevel"`
-	PonytailEnabled            bool                        `json:"ponytailEnabled"`
-	PonytailLevel              string                      `json:"ponytailLevel"`
-	HeadroomUrl                string                      `json:"headroomUrl"`
-	HeadroomCodeAware          bool                        `json:"headroomCodeAware"`
-	HeadroomKompress           bool                        `json:"headroomKompress"`
-	HeadroomTimeoutMs          int                         `json:"headroomTimeoutMs"`
-	AutoUpdate                 bool                        `json:"autoUpdate"`
-	FallbackStrategy           string                      `json:"fallbackStrategy,omitempty"`
-	StickyRoundRobinLimit      int                         `json:"stickyRoundRobinLimit,omitempty"`
-	ComboStrategy              string                      `json:"comboStrategy,omitempty"`
-	ComboStickyRoundRobinLimit int                         `json:"comboStickyRoundRobinLimit,omitempty"`
-	ComboStrategies            map[string]ComboStrategy    `json:"comboStrategies,omitempty"`
-	ProviderStrategies         map[string]ProviderStrategy    `json:"providerStrategies,omitempty"`
+	RTKEnabled                 bool                            `json:"rtkEnabled"`
+	CavemanEnabled             bool                            `json:"cavemanEnabled"`
+	CavemanLevel               string                          `json:"cavemanLevel"`
+	PonytailEnabled            bool                            `json:"ponytailEnabled"`
+	PonytailLevel              string                          `json:"ponytailLevel"`
+	HeadroomUrl                string                          `json:"headroomUrl"`
+	HeadroomCodeAware          bool                            `json:"headroomCodeAware"`
+	HeadroomKompress           bool                            `json:"headroomKompress"`
+	HeadroomTimeoutMs          int                             `json:"headroomTimeoutMs"`
+	AutoUpdate                 bool                            `json:"autoUpdate"`
+	FallbackStrategy           string                          `json:"fallbackStrategy,omitempty"`
+	StickyRoundRobinLimit      int                             `json:"stickyRoundRobinLimit,omitempty"`
+	ComboStrategy              string                          `json:"comboStrategy,omitempty"`
+	ComboStickyRoundRobinLimit int                             `json:"comboStickyRoundRobinLimit,omitempty"`
+	ComboStrategies            map[string]ComboStrategy        `json:"comboStrategies,omitempty"`
+	ProviderStrategies         map[string]ProviderStrategy     `json:"providerStrategies,omitempty"`
 	CapacityAdapter            map[string]CapacityAdapterEntry `json:"capacityAdapter,omitempty"`
 }
 
@@ -199,11 +199,9 @@ func (r *Repo) GetSettings() (*SettingsData, error) {
 				if rawModels, ok := vm["models"].([]any); ok {
 					for _, rm := range rawModels {
 						if ms, ok := rm.(string); ok && ms != "" {
-							if ms == "oc/mimo-v2.5-free" {
-								ms = "oc/mimo-v2.6-flash-free"
-							}
 							models = append(models, ms)
 						}
+						// No special migration needed for this model.
 					}
 				}
 				s.CapacityAdapter[k] = CapacityAdapterEntry{

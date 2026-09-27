@@ -103,7 +103,7 @@
         <Button size="sm" onclick={onAddAnthropic} class="w-full sm:w-auto bg-[#E56A4A] text-white hover:bg-[#D45939] border-none">
           <Plus class="w-4 h-4 mr-1" /> Add Anthropic Compatible
         </Button>
-        <Button size="sm" variant="secondary" onclick={onAddOpenAI} class="w-full sm:w-auto !bg-white !text-black hover:!bg-gray-100 border border-border shadow-xs">
+        <Button size="sm" variant="secondary" onclick={onAddOpenAI} class="w-full sm:w-auto bg-white text-black hover:bg-gray-100 border border-border shadow-xs">
           <Plus class="w-4 h-4 mr-1" /> Add OpenAI Compatible
         </Button>
       </div>

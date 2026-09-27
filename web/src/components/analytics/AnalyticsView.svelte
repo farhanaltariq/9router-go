@@ -17,6 +17,7 @@
   import UsageBreakdownTable from './UsageBreakdownTable.svelte'
   import RequestDetailsTab from './RequestDetailsTab.svelte'
   import ProviderTopologyCard from './ProviderTopologyCard.svelte'
+  import UsageChart from '../UsageChart.svelte'
   interface Props {
     connections?: ProviderConnection[]
     providerNodes?: ProviderNode[]
@@ -401,6 +402,9 @@
         {/if}
       </div>
     </div>
+
+    <!-- Token / Cost chart - sync period (Parity with upstream UsageStats.js) -->
+    <UsageChart {period} style="min-height: 380px;" />
 
     <!-- Breakdown Table -->
     <UsageBreakdownTable {stats} />

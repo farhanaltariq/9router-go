@@ -72,6 +72,12 @@ func RequireDashboardAuth(repo *db.Repo) func(http.Handler) http.Handler {
 					next.ServeHTTP(w, r)
 					return
 				}
+				// For /api/settings/database, allow through if password header or POST body is provided
+				// so the handler can perform password verification.
+				if r.URL.Path == "/api/settings/database" && (r.Header.Get("x-9r-password") != "" || r.Method == http.MethodPost) {
+					next.ServeHTTP(w, r)
+					return
+				}
 				handlerutil.WriteJSONError(w, http.StatusUnauthorized, "Unauthorized: admin session or CLI token required")
 				return
 			}

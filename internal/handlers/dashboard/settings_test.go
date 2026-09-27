@@ -5,6 +5,7 @@ import (
 	json "encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -277,5 +278,45 @@ func TestHandleExportImportDatabase_RoundTrip(t *testing.T) {
 	var apiKey string
 	if err := repo.RawDB().QueryRow(`SELECT key FROM apiKeys`).Scan(&apiKey); err != nil || apiKey != "sk-cli-1" {
 		t.Errorf("restored api key wrong: %q err=%v", apiKey, err)
+	}
+}
+
+func TestImportRealBackupFile(t *testing.T) {
+	repo, cleanup := setupSettingsTestDB(t)
+	defer cleanup()
+	router := setupTestRouter(repo)
+
+	data, err := os.ReadFile("../../../hehe/9router-backup-2026-09-27T12-25-25-724Z.json")
+	if err != nil {
+		t.Skipf("backup file not found: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/settings/database", bytes.NewReader(data))
+	req.Header.Set(cliTokenHeader, auth.CLIToken())
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import failed: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Now export
+	req = httptest.NewRequest(http.MethodGet, "/api/settings/database", nil)
+	req.Header.Set(cliTokenHeader, auth.CLIToken())
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("export failed: %d %s", rec.Code, rec.Body.String())
+	}
+	exported := rec.Body.Bytes()
+
+	// Re-import exported
+	req = httptest.NewRequest(http.MethodPost, "/api/settings/database", bytes.NewReader(exported))
+	req.Header.Set(cliTokenHeader, auth.CLIToken())
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("re-import failed: %d %s", rec.Code, rec.Body.String())
 	}
 }

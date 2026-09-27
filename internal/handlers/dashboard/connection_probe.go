@@ -14,6 +14,7 @@ import (
 	"9router/proxy/internal/handlerutil"
 	"9router/proxy/internal/models"
 	"9router/proxy/internal/providers"
+	internalproxy "9router/proxy/internal/proxy"
 	"9router/proxy/internal/proxy/oauth"
 )
 
@@ -69,6 +70,22 @@ type probeOutcome struct {
 	tokens    *oauth.TokenResult
 }
 
+type probeRelayKey struct{}
+
+func withProbeRelayURL(ctx context.Context, relayURL string) context.Context {
+	if relayURL == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, probeRelayKey{}, relayURL)
+}
+
+func probeRelayURL(ctx context.Context) string {
+	if v, ok := ctx.Value(probeRelayKey{}).(string); ok {
+		return v
+	}
+	return ""
+}
+
 // connectionProbeDo performs the outbound request of a connection test.
 // Package-level so tests can stub the network, mirroring validateProbeDo.
 var connectionProbeDo = func(ctx context.Context, client *http.Client, method, rawURL string, headers map[string]string, body []byte) (int, []byte, error) {
@@ -79,15 +96,26 @@ var connectionProbeDo = func(ctx context.Context, client *http.Client, method, r
 	if len(body) > 0 {
 		reader = bytes.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, rawURL, reader)
+
+	targetURL := rawURL
+	reqHeaders := make(map[string]string, len(headers)+2)
+	for k, v := range headers {
+		reqHeaders[k] = v
+	}
+	if relayURL := probeRelayURL(ctx); relayURL != "" {
+		reqHeaders = internalproxy.BuildEdgeRelayHeaders(targetURL, reqHeaders)
+		targetURL = relayURL
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, reader)
 	if err != nil {
 		return 0, nil, err
 	}
-	for k, v := range headers {
+	for k, v := range reqHeaders {
 		req.Header.Set(k, v)
 	}
 	if client == nil {
-		client = http.DefaultClient
+		client = directProbeClient
 	}
 	resp, err := client.Do(req)
 	if isProxyFailure(err, resp) {
@@ -98,8 +126,8 @@ var connectionProbeDo = func(ctx context.Context, client *http.Client, method, r
 		if len(body) > 0 {
 			directReader = bytes.NewReader(body)
 		}
-		if directReq, dErr := http.NewRequestWithContext(ctx, method, rawURL, directReader); dErr == nil {
-			for k, v := range headers {
+		if directReq, dErr := http.NewRequestWithContext(ctx, method, targetURL, directReader); dErr == nil {
+			for k, v := range reqHeaders {
 				directReq.Header.Set(k, v)
 			}
 			if directResp, dErr2 := directProbeClient.Do(directReq); dErr2 == nil {
@@ -218,11 +246,14 @@ func parseConnectionProbeData(raw map[string]any) connectionProbeData {
 // testSingleConnection mirrors testSingleConnection(id): resolve the proxy,
 // pre-check it, then run the api-key or OAuth probe.
 func (h *DashboardHandler) testSingleConnection(ctx context.Context, conn *models.ProviderConnection, data connectionProbeData, raw map[string]any) probeOutcome {
-	client, proxyURL := h.probeHTTPClient(data, raw)
+	client, proxyURL, relayURL := h.probeHTTPClient(data, raw)
 	if proxyURL != "" {
 		if err := probeProxyURL(ctx, proxyURL); err != nil {
 			return probeOutcome{message: err.Error()}
 		}
+	}
+	if relayURL != "" {
+		ctx = withProbeRelayURL(ctx, relayURL)
 	}
 
 	if conn.AuthType == "apikey" || conn.AuthType == "cookie" || conn.AuthType == "compatible" {
@@ -234,9 +265,8 @@ func (h *DashboardHandler) testSingleConnection(ctx context.Context, conn *model
 // probeHTTPClient resolves the connection's proxy the way the chat pipeline
 // does (proxy pool first, then the legacy per-connection proxy fields) and
 // returns a client bound to it plus the proxy URL when it is a plain HTTP
-// proxy. Relay pools (vercel/cloudflare/deno) are not dialed as proxies, so
-// they fall back to the default client exactly like chat's resolver.
-func (h *DashboardHandler) probeHTTPClient(data connectionProbeData, raw map[string]any) (*http.Client, string) {
+// proxy, or the relay URL for edge relays (vercel/cloudflare/deno).
+func (h *DashboardHandler) probeHTTPClient(data connectionProbeData, raw map[string]any) (*http.Client, string, string) {
 	poolID := psdStr(data.ProviderSpecificData, "proxyPoolId")
 	if poolID == "" {
 		poolID = psdStr(raw, "proxyPoolId")
@@ -266,20 +296,20 @@ func (h *DashboardHandler) probeHTTPClient(data connectionProbeData, raw map[str
 		}
 	}
 	if proxyURLStr == "" {
-		return nil, ""
+		return directProbeClient, "", ""
 	}
 	if proxyType == "vercel" || proxyType == "cloudflare" || proxyType == "deno" {
-		return nil, ""
+		return directProbeClient, "", proxyURLStr
 	}
 
 	parsed, err := url.Parse(proxyURLStr)
 	if err != nil {
-		return nil, ""
+		return directProbeClient, "", ""
 	}
 	return &http.Client{
 		Transport: &http.Transport{Proxy: http.ProxyURL(parsed)},
 		Timeout:   connectionProbeTimeout,
-	}, proxyURLStr
+	}, proxyURLStr, ""
 }
 
 // probeProxyURL pre-checks a proxy before probing through it (upstream runs
@@ -489,6 +519,14 @@ func (h *DashboardHandler) probeOAuthConnection(ctx context.Context, conn *model
 				return probeOutcome{valid: true, refreshed: true, tokens: retryTokens}
 			}
 			return probeOutcome{message: retry.message, refreshed: true, tokens: retryTokens}
+		}
+		// If cloudcode-pa request failed with network/dial error (status 0),
+		// fall back to probing Google OAuth userinfo to verify token credentials.
+		if attempt.status == 0 {
+			userinfoAttempt := runOAuthProbe(ctx, cfg, client, accessToken)
+			if userinfoAttempt.valid {
+				return probeOutcome{valid: true, refreshed: refreshed, tokens: tokens}
+			}
 		}
 		return probeOutcome{message: attempt.message, refreshed: refreshed, tokens: tokens}
 	}
