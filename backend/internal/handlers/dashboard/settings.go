@@ -33,7 +33,7 @@ const (
 
 // protectedSettingKeys may never be written by the dashboard client — matches
 // Next's PROTECTED_SETTING_KEYS (the hashed password lives in settings too).
-var protectedSettingKeys = []string{"password", "mitmSudoEncrypted"}
+var protectedSettingKeys = []string{"password"}
 
 // writePlainError answers with Next's flat { error: "message" } shape instead of
 // the OpenAI-style envelope, because the dashboard UI reads data.error as text.
@@ -322,7 +322,6 @@ type databaseExport struct {
 	Combos              []map[string]any `json:"combos"`
 	ModelAliases        map[string]any   `json:"modelAliases"`
 	CustomModels        []any            `json:"customModels"`
-	MitmAlias           map[string]any   `json:"mitmAlias"`
 	Pricing             map[string]any   `json:"pricing"`
 }
 
@@ -337,7 +336,6 @@ func (h *DashboardHandler) exportDatabase() (*databaseExport, error) {
 		Combos:              []map[string]any{},
 		ModelAliases:        map[string]any{},
 		CustomModels:        []any{},
-		MitmAlias:           map[string]any{},
 		Pricing:             map[string]any{},
 	}
 
@@ -414,7 +412,7 @@ func (h *DashboardHandler) importDatabase(payload map[string]any) error {
 		`DELETE FROM proxyPools`,
 		`DELETE FROM apiKeys`,
 		`DELETE FROM combos`,
-		`DELETE FROM kv WHERE scope IN ('modelAliases', 'customModels', 'mitmAlias', 'pricing')`,
+		`DELETE FROM kv WHERE scope IN ('modelAliases', 'customModels', 'pricing')`,
 	}
 	for _, stmt := range wipes {
 		if _, err := tx.Exec(stmt); err != nil {
@@ -525,9 +523,6 @@ func (h *DashboardHandler) importDatabase(payload map[string]any) error {
 	if err := writeKVPayload(tx, "customModels", payload["customModels"], false); err != nil {
 		return err
 	}
-	if err := writeKVPayload(tx, "mitmAlias", payload["mitmAlias"], true); err != nil {
-		return err
-	}
 	if err := writeKVPayload(tx, "pricing", payload["pricing"], true); err != nil {
 		return err
 	}
@@ -597,8 +592,6 @@ func loadKVScopes(db *sql.DB, out *databaseExport) error {
 		switch scope {
 		case "modelAliases":
 			out.ModelAliases[key] = parseJSONValue(value, value)
-		case "mitmAlias":
-			out.MitmAlias[key] = parseJSONValue(value, map[string]any{})
 		case "pricing":
 			out.Pricing[key] = parseJSONValue(value, map[string]any{})
 		case "customModels":

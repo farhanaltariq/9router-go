@@ -10,7 +10,7 @@ AUTO_UPDATE ?= false
 
 LDFLAGS := -s -w -X '9router/proxy/internal/updater.CurrentVersion=$(VERSION)'
 
-.PHONY: build run dev version update test test-short vet bench bench-go cross mitm-enable mitm-disable mitm-status docker docker-build clean help web-build
+.PHONY: build run dev version update test test-short vet bench bench-go cross docker docker-build clean help web-build
 
 ## web-build — build frontend static assets (Svelte 5/Vite 8) into backend/web/dist
 web-build:
@@ -73,18 +73,6 @@ cross: web-build
 	@ls -lh $(BINARY_NAME)-*
 	@(sha256sum $(BINARY_NAME)-linux-amd64 $(BINARY_NAME)-linux-arm64 $(BINARY_NAME)-darwin-amd64 $(BINARY_NAME)-darwin-arm64 $(BINARY_NAME)-windows-amd64.exe 2>/dev/null || shasum -a 256 $(BINARY_NAME)-linux-amd64 $(BINARY_NAME)-linux-arm64 $(BINARY_NAME)-darwin-amd64 $(BINARY_NAME)-darwin-arm64 $(BINARY_NAME)-windows-amd64.exe) > SHA256SUMS.txt
 	@cat SHA256SUMS.txt
-
-## mitm-enable — start MITM proxy
-mitm-enable: build
-	./$(BINARY_NAME) mitm enable
-
-## mitm-disable — stop MITM proxy
-mitm-disable: build
-	./$(BINARY_NAME) mitm disable
-
-## mitm-status — check MITM proxy status
-mitm-status: build
-	./$(BINARY_NAME) mitm status
 
 ## docker — docker compose up
 docker:

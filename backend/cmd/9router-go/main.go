@@ -88,29 +88,8 @@ func main() {
 					return nil
 				},
 			},
-			{
-				Name:  "mitm",
-				Usage: "Manage MITM proxy for CLI tool traffic interception",
-				Subcommands: []*cli.Command{
-					{
-						Name:   "enable",
-						Usage:  "Start MITM proxy (DNS redirect + TLS intercept on :443)",
-						Action: mitmEnable,
-					},
-					{
-						Name:   "disable",
-						Usage:  "Stop MITM proxy and remove DNS entries",
-						Action: mitmDisable,
-					},
-					{
-						Name:   "status",
-						Usage:  "Show MITM proxy status",
-						Action: mitmStatus,
-					},
-				},
-			},
 		},
-		Action: runServer,
+			Action: runServer,
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -159,4 +138,3 @@ func runServer(cCtx *cli.Context) error {
 	defer stopCancel()
 	return fxApp.Stop(stopCtx)
 }
-

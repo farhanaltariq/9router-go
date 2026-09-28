@@ -102,6 +102,61 @@ func toCommandcodeImageBlock(part map[string]any) map[string]any {
 	return nil
 }
 
+// flattenTextCC mirrors upstream flattenText: null→"", string→as-is, array→join .text parts, else String().
+func flattenTextCC(content any) string {
+	switch c := content.(type) {
+	case nil:
+		return ""
+	case string:
+		return c
+	case []any:
+		parts := make([]string, 0, len(c))
+		for _, p := range c {
+			switch v := p.(type) {
+			case string:
+				parts = append(parts, v)
+			case map[string]any:
+				if t, ok := v["text"].(string); ok {
+					parts = append(parts, t)
+				}
+			}
+		}
+		return strings.Join(parts, "\n")
+	default:
+		return fmt.Sprintf("%v", content)
+	}
+}
+
+// safeParseJSON mirrors upstream safeParseJson for tool-call arguments.
+func safeParseJSON(v any) any {
+	switch s := v.(type) {
+	case nil:
+		return map[string]any{}
+	case string:
+		var out any
+		if err := json.Unmarshal([]byte(s), &out); err != nil {
+			return map[string]any{}
+		}
+		return out
+	default:
+		return s
+	}
+}
+
+func buildCommandcodeSystemConfig() map[string]any {
+	return map[string]any{
+		"workingDir":    "/",
+		"date":          time.Now().UTC().Format("2006-01-02"),
+		"environment":   runtime.GOOS,
+		"structure":     []any{},
+		"isGitRepo":     false,
+		"currentBranch": "",
+		"mainBranch":    "",
+		"gitStatus":     "",
+		"recentCommits": []any{},
+	}
+}
+
 // buildCommandcodeBody transforms OpenAI request payload into CommandCode schema
 // {threadId, memory, config, params} matching upstream openaiToCommandCodeRequest.
 func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
@@ -119,17 +174,7 @@ func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
 			m["memory"] = ""
 		}
 		if _, hasCfg := m["config"]; !hasCfg {
-			m["config"] = map[string]any{
-				"workingDir":    "/",
-				"date":          time.Now().UTC().Format("2006-01-02"),
-				"environment":   runtime.GOOS,
-				"structure":     []any{},
-				"isGitRepo":     false,
-				"currentBranch": "",
-				"mainBranch":    "",
-				"gitStatus":     "",
-				"recentCommits": []any{},
-			}
+			m["config"] = buildCommandcodeSystemConfig()
 		}
 		return json.Marshal(m)
 	}
@@ -155,51 +200,65 @@ func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
 			role, _ := msgMap["role"].(string)
 			contentVal := msgMap["content"]
 
-			if role == "system" || role == "developer" {
-				if s, ok := contentVal.(string); ok && s != "" {
+			switch role {
+			case "system", "developer":
+				if s := flattenTextCC(contentVal); s != "" {
 					systemTexts = append(systemTexts, s)
 				}
 				continue
-			}
-
-			var contentBlocks []any
-			if strContent, ok := contentVal.(string); ok {
-				contentBlocks = append(contentBlocks, map[string]any{
-					"type": "text",
-					"text": strContent,
+			case "tool":
+				rawToolCallID, _ := msgMap["tool_call_id"].(string)
+				rawToolName, _ := msgMap["name"].(string)
+				convertedMsgs = append(convertedMsgs, map[string]any{
+					"role": "tool",
+					"content": []any{map[string]any{
+						"type":       "tool-result",
+						"toolCallId": rawToolCallID,
+						"toolName":   rawToolName,
+						"output":     map[string]any{"type": "text", "value": flattenTextCC(contentVal)},
+					}},
 				})
-			} else if arrContent, ok := contentVal.([]any); ok {
-				for _, part := range arrContent {
-					if partMap, ok := part.(map[string]any); ok {
-						pType, _ := partMap["type"].(string)
-						if pType == "text" {
-							txt, _ := partMap["text"].(string)
-							contentBlocks = append(contentBlocks, map[string]any{
-								"type": "text",
-								"text": txt,
-							})
-						} else if imgBlock := toCommandcodeImageBlock(partMap); imgBlock != nil {
-							contentBlocks = append(contentBlocks, imgBlock)
-						} else if txt, ok := partMap["text"].(string); ok {
-							contentBlocks = append(contentBlocks, map[string]any{
-								"type": "text",
-								"text": txt,
-							})
-						}
+				continue
+			case "assistant":
+				blocks := []any{}
+				rc := firstNonEmptyString(msgMap, "reasoning_content", "thought", "reasoning")
+				toolCalls, _ := msgMap["tool_calls"].([]any)
+				if rc != "" || len(toolCalls) > 0 {
+					text := rc
+					if text == "" {
+						text = " "
 					}
+					blocks = append(blocks, map[string]any{"type": "reasoning", "text": text})
 				}
-			} else {
-				contentBlocks = append(contentBlocks, map[string]any{
-					"type": "text",
-					"text": "",
-				})
+				if text := flattenTextCC(contentVal); text != "" {
+					blocks = append(blocks, map[string]any{"type": "text", "text": text})
+				}
+				for _, tcRaw := range toolCalls {
+					tc, ok := tcRaw.(map[string]any)
+					if !ok {
+						continue
+					}
+					fn, _ := tc["function"].(map[string]any)
+					if fn == nil {
+						fn = map[string]any{}
+					}
+					tcID, _ := tc["id"].(string)
+					fnName, _ := fn["name"].(string)
+					blocks = append(blocks, map[string]any{
+						"type":       "tool-call",
+						"toolCallId": tcID,
+						"toolName":   fnName,
+						"input":      safeParseJSON(fn["arguments"]),
+					})
+				}
+				if len(blocks) == 0 {
+					blocks = append(blocks, map[string]any{"type": "text", "text": ""})
+				}
+				convertedMsgs = append(convertedMsgs, map[string]any{"role": "assistant", "content": blocks})
+				continue
+			default:
+				convertedMsgs = append(convertedMsgs, map[string]any{"role": role, "content": toCommandcodeContentBlocks(contentVal)})
 			}
-
-			convertedMsg := map[string]any{
-				"role":    role,
-				"content": contentBlocks,
-			}
-			convertedMsgs = append(convertedMsgs, convertedMsg)
 		}
 		params["messages"] = convertedMsgs
 		if len(systemTexts) > 0 {
@@ -207,24 +266,110 @@ func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
 		}
 	}
 
+	// tools: OpenAI function format → Anthropic plain {name, description, input_schema}
+	if rawTools, ok := m["tools"].([]any); ok {
+		var tools []any
+		for _, tRaw := range rawTools {
+			t, ok := tRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if t["type"] == "function" {
+				fn, _ := t["function"].(map[string]any)
+				if fn == nil {
+					continue
+				}
+				schema, ok := fn["parameters"].(any)
+				if !ok {
+					schema = map[string]any{"type": "object"}
+				}
+				tools = append(tools, map[string]any{
+					"name":         fn["name"],
+					"description":  fn["description"],
+					"input_schema": schema,
+				})
+			} else if _, hasName := t["name"]; hasName {
+				schema, ok := t["input_schema"].(any)
+				if !ok {
+					schema, _ = t["parameters"].(any)
+				}
+				tools = append(tools, map[string]any{
+					"name":         t["name"],
+					"description":  t["description"],
+					"input_schema": schema,
+				})
+			}
+		}
+		if len(tools) > 0 {
+			params["tools"] = tools
+		}
+	}
+
+	// Sanitize known-invalid fields upstream rejects with 400.
+	if eff, ok := params["reasoning_effort"].(string); ok {
+		switch eff {
+		case "low", "medium", "high", "xhigh", "max":
+			// valid — keep
+		default:
+			delete(params, "reasoning_effort")
+		}
+	}
+
 	payload := map[string]any{
 		"threadId": uuid.New().String(),
 		"memory":   "",
-		"config": map[string]any{
-			"workingDir":    "/",
-			"date":          time.Now().UTC().Format("2006-01-02"),
-			"environment":   runtime.GOOS,
-			"structure":     []any{},
-			"isGitRepo":     false,
-			"currentBranch": "",
-			"mainBranch":    "",
-			"gitStatus":     "",
-			"recentCommits": []any{},
-		},
-		"params": params,
+		"config":   buildCommandcodeSystemConfig(),
+		"params":   params,
 	}
 
 	return json.Marshal(payload)
+}
+
+// toCommandcodeContentBlocks converts OpenAI content (string | array) into
+// CommandCode content blocks (never a raw string).
+func toCommandcodeContentBlocks(contentVal any) []any {
+	switch c := contentVal.(type) {
+	case string:
+		return []any{map[string]any{"type": "text", "text": c}}
+	case []any:
+		blocks := make([]any, 0, len(c))
+		for _, part := range c {
+			partMap, ok := part.(map[string]any)
+			if !ok {
+				if s, ok := part.(string); ok {
+					blocks = append(blocks, map[string]any{"type": "text", "text": s})
+				}
+				continue
+			}
+			pType, _ := partMap["type"].(string)
+			if pType == "text" {
+				txt, _ := partMap["text"].(string)
+				blocks = append(blocks, map[string]any{"type": "text", "text": txt})
+			} else if imgBlock := toCommandcodeImageBlock(partMap); imgBlock != nil {
+				blocks = append(blocks, imgBlock)
+			} else if txt, ok := partMap["text"].(string); ok {
+				blocks = append(blocks, map[string]any{"type": "text", "text": txt})
+			}
+		}
+		if len(blocks) == 0 {
+			blocks = append(blocks, map[string]any{"type": "text", "text": ""})
+		}
+		return blocks
+	case nil:
+		return []any{map[string]any{"type": "text", "text": ""}}
+	default:
+		return []any{map[string]any{"type": "text", "text": fmt.Sprintf("%v", contentVal)}}
+	}
+}
+
+// firstNonEmptyString returns the first non-empty string value among the given keys.
+func firstNonEmptyString(m map[string]any, keys ...string) string {
+	for _, k := range keys {
+		if s, ok := m[k].(string); ok && s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // ForwardCommandcode forwards to CommandCode with NDJSON→SSE translation.

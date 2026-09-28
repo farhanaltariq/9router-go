@@ -72,28 +72,47 @@ func ForwardGemini(ctx context.Context, client *http.Client, cfg *providers.Prov
 	}
 
 	// Build URL
-	baseURL := strings.TrimRight(cfg.BaseURL, "/")
-	if idx := strings.Index(baseURL, "/v1beta/openai"); idx != -1 {
-		baseURL = baseURL[:idx]
-	} else if idx := strings.Index(baseURL, "/v1/"); idx != -1 {
-		baseURL = baseURL[:idx]
-	}
-
-	action := "generateContent"
-	if isStream {
-		action = "streamGenerateContent?alt=sse"
-	}
 	var requestURL string
-	if projectID != "" {
-		requestURL = fmt.Sprintf("%s/v1internal:%s", baseURL, action)
-	} else {
-		requestURL = fmt.Sprintf("%s/v1beta/models/%s:%s", baseURL, modelName, action)
+	if cfg.StaticHeaders != nil {
+		if _, hasRelayTarget := cfg.StaticHeaders["x-relay-target"]; hasRelayTarget {
+			// Relay mode: send to the relay host as-is; the relay reads
+			// x-relay-target / x-relay-path to forward upstream.
+			requestURL = strings.TrimRight(cfg.BaseURL, "/")
+			if requestURL == "" {
+				requestURL = "/"
+			}
+		}
+	}
+	if requestURL == "" {
+		baseURL := strings.TrimRight(cfg.BaseURL, "/")
+		if idx := strings.Index(baseURL, "/v1beta/openai"); idx != -1 {
+			baseURL = baseURL[:idx]
+		} else if idx := strings.Index(baseURL, "/v1/"); idx != -1 {
+			baseURL = baseURL[:idx]
+		}
+
+		action := "generateContent"
+		if isStream {
+			action = "streamGenerateContent?alt=sse"
+		}
+		if projectID != "" {
+			requestURL = fmt.Sprintf("%s/v1internal:%s", baseURL, action)
+		} else {
+			requestURL = fmt.Sprintf("%s/v1beta/models/%s:%s", baseURL, modelName, action)
+		}
 	}
 
 	headers := map[string]string{
 		"Content-Type":  "application/json",
 		"Authorization": "Bearer " + apiKey,
 		"User-Agent":    "antigravity/ide/2.11.0 darwin/arm64",
+	}
+	// Forward relay headers (x-relay-target / x-relay-path) so edge relays
+	// can rewrite the request to the real upstream endpoint.
+	if cfg.StaticHeaders != nil {
+		for k, v := range cfg.StaticHeaders {
+			headers[k] = v
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", requestURL, bytes.NewReader(sendBody))

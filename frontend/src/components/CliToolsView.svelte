@@ -35,7 +35,7 @@
   let statuses = $state<Record<string, { installed?: boolean; version?: string | null; has9Router?: boolean } | null>>({})
   let isLoading = $state(true)
   let searchQuery = $state('')
-  let activeCategory = $state<'all' | 'cli' | 'ide' | 'mitm'>('all')
+  let activeCategory = $state<'all' | 'cli' | 'ide'>('all')
   let copiedSnippetId = $state<string | null>(null)
   // SSR fallback uses the Go default port 20130; live origin wins on mount.
   let localOrigin = $state(typeof window !== 'undefined' ? window.location.origin : 'http://localhost:20130')
@@ -58,12 +58,12 @@
   interface ToolItem {
     id: string
     name: string
-    category: 'cli' | 'ide' | 'mitm'
+    category: 'cli' | 'ide'
     description: string
     color: string
     image?: string
     icon?: string
-    configType: 'env' | 'settings' | 'guide' | 'mitm'
+    configType: 'env' | 'settings' | 'guide'
     envVars?: Record<string, string>
     instructions?: string[]
     defaultKey?: string
@@ -118,33 +118,6 @@
         `Set Base URL: ${localOrigin}/v1`,
         'Set API Key: enter your 9router-go API Key.',
         'Set Model ID: choose any configured model or combo.',
-      ],
-    },
-    {
-      id: 'antigravity',
-      name: 'Antigravity MITM',
-      category: 'mitm',
-      image: '/providers/antigravity.png',
-      description: 'Google Antigravity IDE proxy & tool uncloaking',
-      color: '#4285F4',
-      configType: 'mitm',
-      instructions: [
-        'Antigravity MITM intercepts Google Cloud Code PA traffic transparently.',
-        `Point HTTP_PROXY or system proxy to 9router-go on port 20130.`,
-        'All tools with _ide suffixes will be seamlessly uncloaked and routed to configured connections.',
-      ],
-    },
-    {
-      id: 'kiro',
-      name: 'Kiro MITM',
-      category: 'mitm',
-      image: '/providers/kiro.png',
-      description: 'Kiro AI IDE transparent request interception',
-      color: '#A855F7',
-      configType: 'mitm',
-      instructions: [
-        'Kiro MITM captures telemetry and auth token exchanges.',
-        `Ensure Kiro network routing directs through 9router-go gateway.`,
       ],
     },
     {
@@ -486,15 +459,6 @@
       >
         IDE & Editors
       </button>
-      <button
-        type="button"
-        onclick={() => (activeCategory = 'mitm')}
-        class="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer {activeCategory === 'mitm'
-          ? 'bg-surface text-brand-500 shadow-sm'
-          : 'text-text-muted hover:text-text-main'}"
-      >
-        MITM Proxies
-      </button>
     </div>
 
     <!-- Search Input -->
@@ -585,7 +549,7 @@
           </span>
 
           <span class="text-[10px] font-mono text-text-subtle">
-            {tool.configType === 'env' ? 'Environment' : tool.configType === 'mitm' ? 'Transparent' : 'Settings UI'}
+            {tool.configType === 'env' ? 'Environment' : 'Settings UI'}
           </span>
         </div>
       </div>

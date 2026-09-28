@@ -60,7 +60,7 @@ The Go binary owns proxy routing, dashboard APIs, auth, persistence, OAuth, medi
 flowchart TD
     Main[main] --> CLI[urfave/cli]
     CLI -->|server action| Params[CLIParams from flags]
-    CLI -->|version/update/mitm| Command[Run command directly]
+    CLI -->|version/update| Command[Run command directly]
     Params --> Fx[fx.New AppModule]
     Fx --> Config[ConfigModule: Viper + Config + CLIParams]
     Fx --> Database[DatabaseModule: SQL DB + Repo]

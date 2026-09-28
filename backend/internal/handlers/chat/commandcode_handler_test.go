@@ -270,6 +270,44 @@ func TestForwardCommandcodeRequest_StaticHeaders(t *testing.T) {
 	}
 }
 
+func TestForwardCommandcodeRequest_RelayHeaders(t *testing.T) {
+	var gotTarget, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTarget = r.Header.Get("x-relay-target")
+		gotPath = r.Header.Get("x-relay-path")
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"type":"finish","finishReason":"stop"}` + "\n"))
+	}))
+	defer srv.Close()
+
+	cfg := &providers.ProviderConfig{
+		BaseURL: srv.URL,
+		StaticHeaders: map[string]string{
+			"x-relay-target": "https://api.commandcode.ai",
+			"x-relay-path":   "/alpha/chat",
+		},
+	}
+	body := []byte(`{"model":"deepseek-v4","messages":[{"role":"user","content":"hi"}]}`)
+	rec := httptest.NewRecorder()
+	err := executor.ForwardCommandcode(rec, &executor.Request{
+		Client:   srv.Client(),
+		Config:   cfg,
+		APIKey:   "sk-cc",
+		Body:     body,
+		IsStream: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotTarget != "https://api.commandcode.ai" {
+		t.Errorf("expected x-relay-target https://api.commandcode.ai, got %q", gotTarget)
+	}
+	if gotPath != "/alpha/chat" {
+		t.Errorf("expected x-relay-path /alpha/chat, got %q", gotPath)
+	}
+}
+
 func TestForwardCommandcodeRequest_ImageAndReasoningEffort(t *testing.T) {
 	var capturedBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -23,7 +23,7 @@ Open `http://localhost:20130` after starting an existing, initialized 9router da
 - Combos with fallback, round-robin, sticky routing, fusion, capability-aware reordering, and account fallback
 - Per-provider executors plus OpenAI-compatible and Gemini-native defaults; OAuth refresh and reactive 401 retry
 - Bidirectional request/response translation, streamed SSE handling, usage capture, live usage/console streams, and stall detection
-- SQLite WAL persistence, proxy pools, outbound proxy support, token-saver options, self-update, MITM commands, Docker, and cross-compilation
+- SQLite WAL persistence, proxy pools, outbound proxy support, token-saver options, self-update, Docker, and cross-compilation
 
 Detailed routing and provider behavior is documented in [`docs/human/ARCHITECTURE.md`](docs/human/ARCHITECTURE.md). Schema details and compatibility notes are in [`docs/human/DATABASE.md`](docs/human/DATABASE.md). Release history is in [`docs/human/CHANGELOG.md`](docs/human/CHANGELOG.md). AI agent rules are located in [`docs/agents/AGENTS.md`](docs/agents/AGENTS.md) and [`docs/agents/CLAUDE.md`](docs/agents/CLAUDE.md).
 
@@ -136,7 +136,7 @@ curl http://localhost:20130/health
 ./9router-go version
 ```
 
-The supported global flags are `--rtk`, `--caveman`, `--ponytail`, `--auto-update`, and `--no-injection-guard`. `make run` and `make dev` pass the corresponding Make variables. Commands are also available for `version`, `update`, and `mitm enable|disable|status`.
+The supported global flags are `--rtk`, `--caveman`, `--ponytail`, `--auto-update`, and `--no-injection-guard`. `make run` and `make dev` pass the corresponding Make variables. Commands are also available for `version` and `update`.
 
 ### Client setup
 

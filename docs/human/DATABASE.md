@@ -166,7 +166,7 @@ CREATE TABLE kv (
 );
 ```
 
-Important scopes include `modelAliases`, `customModels`, `pricing`, `mitmAlias`, and `disabledModels`. Legacy `modelLock` and `providerHealth` data may also be present. `customModels` is a list encoded in the `value` JSON with a compound key; other scopes commonly use `value` as a JSON string.
+Important scopes include `modelAliases`, `customModels`, `pricing`, and `disabledModels`. Legacy `modelLock` and `providerHealth` data may also be present. `customModels` is a list encoded in the `value` JSON with a compound key; other scopes commonly use `value` as a JSON string.
 
 ### `usageHistory`
 
@@ -276,7 +276,7 @@ There are two different things called “backup” in the product. Neither shoul
 - `proxyPools`;
 - client `apiKeys`;
 - `combos`; and
-- the `modelAliases`, `customModels`, `mitmAlias`, and `pricing` KV scopes.
+- the `modelAliases`, `customModels`, and `pricing` KV scopes.
 
 The payload is sensitive: it can contain provider API keys/tokens, proxy credentials, client API keys, and the dashboard password hash. It does **not** include `usageHistory`, `usageDaily`, `requestDetails`, `upstream_leases`, `_meta`, or every KV scope. Import is destructive: it deletes and replaces the listed configuration data in one transaction. Treat it as configuration export/restore, not a full disaster-recovery backup.
 

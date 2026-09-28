@@ -3,6 +3,11 @@
 
 ## [Unreleased]
 
+### ✂️ CommandCode tool-call parity & MITM feature removal
+
+- `internal/proxy/executor/providers.go` — `buildCommandcodeBody` now mirrors upstream `openai-to-commandcode.js`: OpenAI `role:"tool"` messages become `{type:"tool-result", toolCallId, toolName, output:{type:"text",value}}` blocks (previously sent `{type:"text"}` and triggered upstream 400 validation errors), assistant `tool_calls` become `{type:"tool-call"}` blocks with parsed JSON arguments, and OpenAI `tools` are converted to Anthropic plain `{name, description, input_schema}`. Also strips invalid `reasoning_effort` values (only `low|medium|high|xhigh|max` accepted by upstream); invalid values no longer produce 400s. Verified live: tool-calling conversations stream through `/v1/chat/completions` without 400s.
+- Removed the MITM/transparent-proxy feature to the root: deleted `backend/internal/mitm/` (cert, DNS, manager, server, Kiro/Antigravity intercept handlers), the `mitm` CLI command (`commands.go`, `main.go`), MITM DNS bypass + sudo-encrypted settings in transport/settings, `mitm-*` Makefile targets, and the "MITM Proxies" category in `CliToolsView.svelte`. Kiro remains a regular API provider — only its loopback-interception mode is gone.
+
 ### 🐛 Dashboard logging, request details, and cached-token parity
 
 - Moved console-log APIs to the dashboard-authenticated `/api/translator/console-logs*` boundary; dashboard sessions and local CLI tokens work, while engine API keys cannot read operational logs or change global log level.
@@ -35,6 +40,12 @@
 - Isolation: a pinned connection ID must belong to the requested provider — cross-provider credential use is now rejected in `GetBestConnection`.
 - TTS: Nvidia honors provider/connection base URL overrides; Edge-TTS rejects sub-1KiB error payloads as empty audio (upstream parity).
 - Frontend: the image Run body now matches the curl example (`background`, `image_detail`).
+
+### 🐛 Edge-relay header forwarding (Antigravity/Gemini) & CommandCode route fix
+
+- `internal/proxy/gemini.go` — `ForwardGemini` now forwards `cfg.StaticHeaders` (including `x-relay-target`/`x-relay-path`) to the upstream request, and when relay headers are present it targets the relay root instead of appending the Gemini action path (`/v1internal:streamGenerateContent?alt=sse`). Fixes `Missing x-relay-target header` for Antigravity connections routed through Vercel/Cloudflare/Deno edge relay pools. Retry paths (401/403/429) re-apply the forwarded headers.
+- `internal/providers/providers.go` — CommandCode default `BaseURL` corrected from `https://api.commandcode.ai/alpha/chat` (404, route no longer registered upstream) to `https://api.commandcode.ai/alpha/generate` (the endpoint `buildCommandcodeBody`'s `{threadId, memory, config, params}` envelope targets). upstream decolua/9router parity.
+- `ForwardCommandcode` already forwards `StaticHeaders` (relay headers verified, no code change); regression tests added in `internal/proxy/gemini_test.go` and `internal/handlers/chat/commandcode_handler_test.go`.
 ## [v1.9.1] - 2026-09-25
 
 ### 🐛 Dashboard: Custom Models Parity — Combo Picker Unwraps `{models}` Envelope

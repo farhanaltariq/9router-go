@@ -74,7 +74,7 @@ var KnownProviders = map[string]ProviderConfig{
 		ImageURL:   "https://chatgpt.com/backend-api/codex/responses",
 	},
 	"commandcode": {
-		BaseURL:    "https://api.commandcode.ai/alpha/chat",
+		BaseURL:    "https://api.commandcode.ai/alpha/generate",
 		AuthHeader: "Authorization",
 		AuthScheme: "bearer",
 	},
