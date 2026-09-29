@@ -43,7 +43,7 @@ func writePlainError(w http.ResponseWriter, status int, message string) {
 
 // secretSettingKeys are stripped from responses so credentials never leave the
 // server (Next strips password + oidcClientSecret from GET /api/settings).
-var secretSettingKeys = []string{"password", "oidcClientSecret"}
+var secretSettingKeys = []string{"password"}
 
 // HandleGetSettings handles GET /api/settings.
 // Reads raw settings data map minus secret keys, mirroring the Next dashboard.

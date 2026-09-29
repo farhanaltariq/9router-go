@@ -58,18 +58,11 @@ func RequireLogin(repo *db.Repo) bool {
 }
 
 // SessionClaims is the JWT payload. Upstream issues {authenticated:true} with a
-// 24h expiry (plus oidc/saml identity claims on SSO logins); iat/exp are added
-// here so a token can be validated statelessly.
+// 24h expiry; iat/exp are added here so a token can be validated statelessly.
 type SessionClaims struct {
-	Authenticated bool   `json:"authenticated"`
-	Oidc          bool   `json:"oidc,omitempty"`
-	OidcName      string `json:"oidcName,omitempty"`
-	OidcEmail     string `json:"oidcEmail,omitempty"`
-	Saml          bool   `json:"saml,omitempty"`
-	SamlName      string `json:"samlName,omitempty"`
-	SamlEmail     string `json:"samlEmail,omitempty"`
-	Iat           int64  `json:"iat"`
-	Exp           int64  `json:"exp"`
+	Authenticated bool  `json:"authenticated"`
+	Iat           int64 `json:"iat"`
+	Exp           int64 `json:"exp"`
 }
 
 func b64(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
@@ -79,19 +72,13 @@ func Sign(secret string, now time.Time) (string, error) {
 	return SignWith(secret, now, SessionClaims{Authenticated: true})
 }
 
-// SignWith creates a signed HS256 JWT with extra claims (SSO login flows).
+// SignWith creates a signed HS256 JWT with extra claims.
 func SignWith(secret string, now time.Time, extra SessionClaims) (string, error) {
 	if secret == "" {
 		return "", errors.New("no jwt secret available")
 	}
 	payload, err := json.Marshal(SessionClaims{
 		Authenticated: true,
-		Oidc:          extra.Oidc,
-		OidcName:      extra.OidcName,
-		OidcEmail:     extra.OidcEmail,
-		Saml:          extra.Saml,
-		SamlName:      extra.SamlName,
-		SamlEmail:     extra.SamlEmail,
 		Iat:           now.Unix(),
 		Exp:           now.Add(TokenTTL).Unix(),
 	})
@@ -147,8 +134,7 @@ func SessionValid(r *http.Request) bool {
 }
 
 // SessionClaimSet decodes the verified session payload, or nil when the
-// request carries no valid auth_token cookie. The fields are the upstream SSO
-// session payload (oidc/saml identity on SSO logins).
+// request carries no valid auth_token cookie.
 func SessionClaimSet(r *http.Request) *SessionClaims {
 	c, err := r.Cookie(CookieName)
 	if err != nil || c.Value == "" {

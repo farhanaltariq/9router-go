@@ -86,58 +86,24 @@
   let isUpdatingPassword = $state(false)
   let passStatus = $state<{ type: 'success' | 'error' | ''; message: string }>({ type: '', message: '' })
 
-  // SSO State
-  let oidcExpanded = $state(false)
-  let ssoTypeTab = $state<'saml' | 'oidc'>('saml')
-  let samlEntryPoint = $state('')
-  let samlIssuer = $state('')
-  let samlCert = $state('')
-  let oidcIssuerUrl = $state('')
-  let oidcClientId = $state('')
-  let oidcScopes = $state('openid profile email')
-  let ssoStatus = $state<{ type: 'success' | 'error' | ''; message: string }>({ type: '', message: '' })
-  let ssoLoading = $state(false)
-
   // Routing Strategy State
   let fallbackStrategy = $state('failover')
   let stickyRoundRobinLimit = $state(3)
   let comboStrategy = $state('first-model')
   let comboStickyRoundRobinLimit = $state(1)
 
-  // Network (Outbound Proxy) State
-  let outboundProxyEnabled = $state(false)
-  let outboundProxyUrl = $state('')
-  let outboundNoProxy = $state('')
-  let proxyLoading = $state(false)
-  let proxyTestLoading = $state(false)
-  let proxyStatus = $state<{ type: 'success' | 'error' | ''; message: string }>({ type: '', message: '' })
-
   // Observability State
   let enableObservability = $state(false)
-
-  // Shutdown Modal State
-  let shutdownModalOpen = $state(false)
-  let isShuttingDown = $state(false)
 
   $effect(() => {
     if (settings) {
       requireLogin = !!settings.requireLogin
       enableObservability = !!settings.enableObservability
-      outboundProxyEnabled = !!settings.outboundProxyEnabled
-      if (typeof settings.outboundProxyUrl === 'string') outboundProxyUrl = settings.outboundProxyUrl
-      if (typeof settings.outboundNoProxy === 'string') outboundNoProxy = settings.outboundNoProxy
       if (typeof settings.sessionTimeout === 'string') sessionTimeout = settings.sessionTimeout
       if (typeof settings.fallbackStrategy === 'string') fallbackStrategy = settings.fallbackStrategy
       if (typeof settings.stickyRoundRobinLimit === 'number') stickyRoundRobinLimit = settings.stickyRoundRobinLimit
       if (typeof settings.comboStrategy === 'string') comboStrategy = settings.comboStrategy
       if (typeof settings.comboStickyRoundRobinLimit === 'number') comboStickyRoundRobinLimit = settings.comboStickyRoundRobinLimit
-
-      if (typeof settings.samlEntryPoint === 'string') samlEntryPoint = settings.samlEntryPoint
-      if (typeof settings.samlIssuer === 'string') samlIssuer = settings.samlIssuer
-      if (typeof settings.samlCert === 'string') samlCert = settings.samlCert
-      if (typeof settings.oidcIssuerUrl === 'string') oidcIssuerUrl = settings.oidcIssuerUrl
-      if (typeof settings.oidcClientId === 'string') oidcClientId = settings.oidcClientId
-      if (typeof settings.oidcScopes === 'string') oidcScopes = settings.oidcScopes
     }
   })
 
@@ -357,67 +323,6 @@
   }
 
   // -------------------------------------------------------------
-  // NETWORK / OUTBOUND PROXY
-  // -------------------------------------------------------------
-  async function updateOutboundProxyEnabled(enabled: boolean) {
-    outboundProxyEnabled = enabled
-    proxyLoading = true
-    proxyStatus = { type: '', message: '' }
-    try {
-      await api.updateSettings({ outboundProxyEnabled: enabled })
-      if (onRefresh) onRefresh()
-    } catch (err) {
-      proxyStatus = { type: 'error', message: err instanceof Error ? err.message : 'Failed to update proxy status' }
-    } finally {
-      proxyLoading = false
-    }
-  }
-
-  async function applyOutboundProxy(e: Event) {
-    e.preventDefault()
-    proxyLoading = true
-    proxyStatus = { type: '', message: '' }
-    try {
-      await api.updateSettings({
-        outboundProxyUrl,
-        outboundNoProxy,
-      })
-      proxyStatus = { type: 'success', message: 'Proxy settings applied' }
-      if (onRefresh) onRefresh()
-    } catch (err) {
-      proxyStatus = { type: 'error', message: err instanceof Error ? err.message : 'Failed to save proxy settings' }
-    } finally {
-      proxyLoading = false
-    }
-  }
-
-  async function testOutboundProxy() {
-    const url = outboundProxyUrl.trim()
-    if (!url) {
-      proxyStatus = { type: 'error', message: 'Please enter a Proxy URL to test' }
-      return
-    }
-    proxyTestLoading = true
-    proxyStatus = { type: '', message: '' }
-    try {
-      const res = await fetch('/api/settings/proxy-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proxyUrl: url }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && data?.ok) {
-        proxyStatus = { type: 'success', message: `Proxy test OK in ${data.elapsedMs || 0}ms` }
-      } else {
-        proxyStatus = { type: 'error', message: data?.error || 'Proxy test failed' }
-      }
-    } catch (err) {
-      proxyStatus = { type: 'error', message: err instanceof Error ? err.message : 'Proxy test failed' }
-    } finally {
-      proxyTestLoading = false
-    }
-  }
-
   // -------------------------------------------------------------
   // OBSERVABILITY
   // -------------------------------------------------------------
@@ -432,21 +337,8 @@
   }
 
   // -------------------------------------------------------------
-  // SHUTDOWN & LOGOUT
+  // LOGOUT
   // -------------------------------------------------------------
-  async function handleShutdown() {
-    isShuttingDown = true
-    try {
-      await api.shutdownServer()
-      alert('Proxy server is shutting down...')
-    } catch (err) {
-      alert(`Shutdown failed: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      isShuttingDown = false
-      shutdownModalOpen = false
-    }
-  }
-
   async function handleLogout() {
     try {
       await api.logout()
@@ -627,159 +519,6 @@
       </div>
     </Card>
 
-    <!-- CARD 3: SINGLE SIGN-ON (SSO) -->
-    <Card>
-      <button
-        type="button"
-        onclick={() => (oidcExpanded = !oidcExpanded)}
-        class="w-full flex items-center gap-3 text-left cursor-pointer"
-      >
-        <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 shrink-0">
-          <span class="material-symbols-outlined text-[20px]">lock_open</span>
-        </div>
-        <div class="flex-1 min-w-0">
-          <h3 class="text-base sm:text-lg font-semibold text-text-main">Single Sign-On (SSO)</h3>
-          <p class="text-xs text-text-muted">
-            Configure enterprise Single Sign-On (SSO) via Okta, Entra ID, Keycloak, or OIDC
-          </p>
-        </div>
-        <span class="material-symbols-outlined text-text-muted shrink-0">
-          {oidcExpanded ? 'expand_less' : 'expand_more'}
-        </span>
-      </button>
-
-      {#if oidcExpanded}
-        <div class="flex flex-col gap-4 mt-4 pt-4 border-t border-border">
-          <div class="flex flex-col gap-2">
-            <label class="font-medium text-sm text-text-main">SSO Protocol</label>
-            <div class="flex p-1 rounded-lg bg-black/5 dark:bg-white/5 border border-border">
-              <button
-                type="button"
-                onclick={() => (ssoTypeTab = 'saml')}
-                class="flex-1 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition cursor-pointer {ssoTypeTab === 'saml' ? 'bg-surface text-text-main shadow-xs' : 'text-text-muted hover:text-text-main'}"
-              >
-                SAML 2.0
-              </button>
-              <button
-                type="button"
-                onclick={() => (ssoTypeTab = 'oidc')}
-                class="flex-1 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition cursor-pointer {ssoTypeTab === 'oidc' ? 'bg-surface text-text-main shadow-xs' : 'text-text-muted hover:text-text-main'}"
-              >
-                OpenID Connect (OIDC)
-              </button>
-            </div>
-          </div>
-
-          {#if ssoTypeTab === 'saml'}
-            <div class="flex flex-col gap-3">
-              <div class="flex flex-col gap-1.5">
-                <label for="saml-url" class="text-xs sm:text-sm font-medium text-text-main">Single Sign-On Service URL</label>
-                <input
-                  id="saml-url"
-                  type="text"
-                  placeholder="https://idp.example.com/app/saml/sso/..."
-                  bind:value={samlEntryPoint}
-                  class="w-full px-3 py-2 text-sm text-text-main bg-bg rounded-lg border border-border focus:outline-none focus:border-brand-500 font-mono"
-                />
-              </div>
-
-              <div class="flex flex-col gap-1.5">
-                <label for="saml-iss" class="text-xs sm:text-sm font-medium text-text-main">SP Entity ID / Audience</label>
-                <input
-                  id="saml-iss"
-                  type="text"
-                  placeholder="urn:9router:sp"
-                  bind:value={samlIssuer}
-                  class="w-full px-3 py-2 text-sm text-text-main bg-bg rounded-lg border border-border focus:outline-none focus:border-brand-500 font-mono"
-                />
-              </div>
-
-              <div class="flex flex-col gap-1.5">
-                <label for="saml-cert-pem" class="text-xs sm:text-sm font-medium text-text-main">IdP X.509 Certificate (PEM)</label>
-                <textarea
-                  id="saml-cert-pem"
-                  rows={3}
-                  placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
-                  bind:value={samlCert}
-                  class="w-full p-2.5 rounded-lg border border-border bg-bg text-xs font-mono text-text-main focus:outline-none focus:border-brand-500"
-                ></textarea>
-              </div>
-            </div>
-          {:else}
-            <div class="flex flex-col gap-3">
-              <div class="flex flex-col gap-1.5">
-                <label for="oidc-iss" class="text-xs sm:text-sm font-medium text-text-main">Issuer URL</label>
-                <input
-                  id="oidc-iss"
-                  type="text"
-                  placeholder="https://accounts.google.com"
-                  bind:value={oidcIssuerUrl}
-                  class="w-full px-3 py-2 text-sm text-text-main bg-bg rounded-lg border border-border focus:outline-none focus:border-brand-500 font-mono"
-                />
-              </div>
-
-              <div class="flex flex-col gap-1.5">
-                <label for="oidc-cid" class="text-xs sm:text-sm font-medium text-text-main">Client ID</label>
-                <input
-                  id="oidc-cid"
-                  type="text"
-                  placeholder="client-id"
-                  bind:value={oidcClientId}
-                  class="w-full px-3 py-2 text-sm text-text-main bg-bg rounded-lg border border-border focus:outline-none focus:border-brand-500 font-mono"
-                />
-              </div>
-
-              <div class="flex flex-col gap-1.5">
-                <label for="oidc-scope" class="text-xs sm:text-sm font-medium text-text-main">Scopes</label>
-                <input
-                  id="oidc-scope"
-                  type="text"
-                  placeholder="openid profile email"
-                  bind:value={oidcScopes}
-                  class="w-full px-3 py-2 text-sm text-text-main bg-bg rounded-lg border border-border focus:outline-none focus:border-brand-500 font-mono"
-                />
-              </div>
-            </div>
-          {/if}
-
-          <div class="pt-2">
-            <Button
-              variant="primary"
-              loading={ssoLoading}
-              onclick={async () => {
-                ssoLoading = true
-                try {
-                  await api.updateSettings({
-                    samlEntryPoint,
-                    samlIssuer,
-                    samlCert,
-                    oidcIssuerUrl,
-                    oidcClientId,
-                    oidcScopes,
-                  })
-                  ssoStatus = { type: 'success', message: 'SSO configuration saved' }
-                  if (onRefresh) onRefresh()
-                } catch (err) {
-                  ssoStatus = { type: 'error', message: err instanceof Error ? err.message : 'Save failed' }
-                } finally {
-                  ssoLoading = false
-                }
-              }}
-              class="w-full sm:w-auto"
-            >
-              Save SSO Configuration
-            </Button>
-          </div>
-
-          {#if ssoStatus.message}
-            <p class="text-xs sm:text-sm font-medium {ssoStatus.type === 'error' ? 'text-red-500' : 'text-green-500'}">
-              {ssoStatus.message}
-            </p>
-          {/if}
-        </div>
-      {/if}
-    </Card>
-
     <!-- CARD 4: ROUTING STRATEGY -->
     <Card>
       <div class="flex items-center gap-3 mb-4">
@@ -865,83 +604,7 @@
       </div>
     </Card>
 
-    <!-- CARD 5: NETWORK -->
-    <Card>
-      <div class="flex items-center gap-3 mb-4">
-        <div class="p-2 rounded-lg bg-purple-500/10 text-purple-500 shrink-0">
-          <span class="material-symbols-outlined text-[20px]">wifi</span>
-        </div>
-        <h3 class="text-base sm:text-lg font-semibold text-text-main">Network</h3>
-      </div>
-
-      <div class="flex flex-col gap-4">
-        <div class="flex items-start sm:items-center justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <p class="font-medium text-sm sm:text-base text-text-main">Outbound Proxy</p>
-            <p class="text-xs sm:text-sm text-text-muted">Enable proxy for OAuth + provider outbound requests.</p>
-          </div>
-          <Toggle
-            checked={outboundProxyEnabled}
-            onChange={(val) => updateOutboundProxyEnabled(val)}
-            disabled={proxyLoading}
-          />
-        </div>
-
-        {#if outboundProxyEnabled}
-          <form onsubmit={applyOutboundProxy} class="flex flex-col gap-4 pt-2 border-t border-border/50">
-            <div class="flex flex-col gap-2">
-              <label for="out-proxy-url" class="font-medium text-xs sm:text-sm text-text-main">Proxy URL</label>
-              <input
-                id="out-proxy-url"
-                type="text"
-                placeholder="http://127.0.0.1:7897"
-                bind:value={outboundProxyUrl}
-                disabled={proxyLoading}
-                class="w-full px-3 py-2 text-sm text-text-main bg-bg rounded-lg border border-border focus:outline-none focus:border-brand-500 font-mono"
-              />
-              <p class="text-xs text-text-muted">Leave empty to inherit existing env proxy (if any).</p>
-            </div>
-
-            <div class="flex flex-col gap-2 pt-2 border-t border-border/50">
-              <label for="out-no-proxy" class="font-medium text-xs sm:text-sm text-text-main">No Proxy</label>
-              <input
-                id="out-no-proxy"
-                type="text"
-                placeholder="localhost,127.0.0.1"
-                bind:value={outboundNoProxy}
-                disabled={proxyLoading}
-                class="w-full px-3 py-2 text-sm text-text-main bg-bg rounded-lg border border-border focus:outline-none focus:border-brand-500 font-mono"
-              />
-              <p class="text-xs text-text-muted">Comma-separated hostnames/domains to bypass the proxy.</p>
-            </div>
-
-            <div class="pt-2 border-t border-border/50 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                loading={proxyTestLoading}
-                disabled={proxyLoading}
-                onclick={testOutboundProxy}
-                class="w-full sm:w-auto"
-              >
-                Test proxy URL
-              </Button>
-              <Button type="submit" variant="primary" loading={proxyLoading} class="w-full sm:w-auto">
-                Apply
-              </Button>
-            </div>
-          </form>
-        {/if}
-
-        {#if proxyStatus.message}
-          <p class="text-xs sm:text-sm font-medium {proxyStatus.type === 'error' ? 'text-red-500' : 'text-green-500'} pt-2 border-t border-border/50">
-            {proxyStatus.message}
-          </p>
-        {/if}
-      </div>
-    </Card>
-
-    <!-- CARD 6: OBSERVABILITY -->
+    <!-- CARD 4: OBSERVABILITY -->
     <Card>
       <div class="flex items-center gap-3 mb-4">
         <div class="p-2 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
@@ -966,15 +629,6 @@
 
     <!-- BOTTOM ACTIONS -->
     <div class="flex flex-col sm:flex-row gap-2 pt-2">
-      <Button
-        variant="outline"
-        fullWidth
-        icon="power_settings_new"
-        onclick={() => (shutdownModalOpen = true)}
-        class="text-red-500 border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/20"
-      >
-        Shutdown
-      </Button>
       <Button
         variant="outline"
         fullWidth
@@ -1043,38 +697,4 @@
     {/snippet}
   </Modal>
 
-  <!-- SHUTDOWN CONFIRM MODAL -->
-  <Modal
-    isOpen={shutdownModalOpen}
-    onClose={() => (shutdownModalOpen = false)}
-    title="Close Proxy"
-    size="sm"
-  >
-    {#snippet children()}
-      <p class="text-text-muted text-sm">
-        Are you sure you want to close the proxy server?
-      </p>
-    {/snippet}
-
-    {#snippet footer()}
-      <div class="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onclick={() => (shutdownModalOpen = false)}
-          disabled={isShuttingDown}
-          class="px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 border border-border text-xs sm:text-sm font-semibold text-text-main transition cursor-pointer"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onclick={handleShutdown}
-          disabled={isShuttingDown}
-          class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs sm:text-sm transition cursor-pointer"
-        >
-          {isShuttingDown ? 'Closing...' : 'Close'}
-        </button>
-      </div>
-    {/snippet}
-  </Modal>
 </div>

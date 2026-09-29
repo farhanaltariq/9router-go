@@ -18,9 +18,7 @@ import (
 // Standard client API keys and requireLogin=false are forbidden here.
 func IsAlwaysProtectedPath(path string) bool {
 	switch path {
-	case "/api/shutdown",
-		"/api/settings/database",
-		"/api/version/shutdown",
+	case "/api/settings/database",
 		"/api/version/update",
 		"/admin/health/reset",
 		"/api/oauth/cursor/auto-import",

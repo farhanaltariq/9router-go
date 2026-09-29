@@ -61,17 +61,6 @@ export interface Settings {
   requireLogin?: boolean
   hasPassword?: boolean
   authMode?: string
-  ssoType?: string
-  oidcIssuerUrl?: string
-  oidcClientId?: string
-  oidcScopes?: string
-  oidcLoginLabel?: string
-  samlEntryPoint?: string
-  samlIssuer?: string
-  samlCert?: string
-  samlLoginLabel?: string
-  samlAttributeEmail?: string
-  samlAttributeName?: string
   /** Language, routing and network preferences (profile page). */
   language?: string
   fallbackStrategy?: string
@@ -79,9 +68,6 @@ export interface Settings {
   stickyRoundRobinLimit?: number
   comboStickyRoundRobinLimit?: number
   enableObservability?: boolean
-  outboundProxyEnabled?: boolean
-  outboundProxyUrl?: string
-  outboundNoProxy?: string
   providerStrategies?: Record<string, ProviderStrategyConfig>
   [key: string]: unknown
 }

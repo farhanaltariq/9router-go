@@ -25,8 +25,6 @@
   let isDark = $state(true)
   let isAppDrawerOpen = $state(false)
   let isChangelogOpen = $state(false)
-  let isShutdownConfirmOpen = $state(false)
-  let isShuttingDown = $state(false)
 
   $effect(() => {
     if (typeof window !== 'undefined') {
@@ -55,7 +53,6 @@
   }
 
   async function handleLogout() {
-    isAppDrawerOpen = false
     try {
       await api.logout()
     } catch {}
@@ -66,22 +63,7 @@
     }
   }
 
-  async function handleShutdown() {
-    isShuttingDown = true
-    try {
-      await api.shutdownServer()
-    } catch {}
-    isShuttingDown = false
-    isShutdownConfirmOpen = false
-  }
-
   interface RouteMeta {
-    title: string
-    description: string
-    icon: string
-  }
-
-  const routeMetaMap: Record<string, RouteMeta> = {
     dashboard: {
       title: 'Endpoint',
       description: 'API endpoint configuration',
@@ -280,17 +262,6 @@
             class="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
           >
             <span class="material-symbols-outlined text-[20px] text-red-500">power_settings_new</span>
-            <span class="flex-1 text-left">Shutdown</span>
-          </button>
-
-          <div class="h-px bg-border-subtle my-1"></div>
-
-          <button
-            type="button"
-            onclick={handleLogout}
-            class="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-          >
-            <span class="material-symbols-outlined text-[20px] text-red-500">logout</span>
             <span class="flex-1 text-left">Logout</span>
           </button>
         </div>
@@ -298,51 +269,6 @@
     </div>
   </div>
 </header>
-
-<!-- Shutdown Confirm Modal -->
-{#if isShutdownConfirmOpen}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div
-      class="absolute inset-0 bg-black/40 backdrop-blur-sm"
-      onclick={() => (isShutdownConfirmOpen = false)}
-      onkeydown={(e) => e.key === 'Escape' && (isShutdownConfirmOpen = false)}
-      role="button"
-      tabindex="-1"
-      aria-label="Close background"
-    ></div>
-
-    <div class="relative w-full max-w-sm bg-surface border border-border-subtle rounded-2xl shadow-2xl p-6 flex flex-col gap-4 z-10 animate-in fade-in zoom-in-95">
-      <div class="flex items-center gap-3">
-        <div class="size-10 rounded-full flex items-center justify-center bg-red-500/10 text-red-500 shrink-0">
-          <span class="material-symbols-outlined text-2xl">power_settings_new</span>
-        </div>
-        <div>
-          <h2 class="text-base font-semibold text-text-main">Close Proxy</h2>
-          <p class="text-xs text-text-muted mt-0.5">Are you sure you want to close the proxy server?</p>
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-2 pt-2">
-        <button
-          type="button"
-          disabled={isShuttingDown}
-          onclick={() => (isShutdownConfirmOpen = false)}
-          class="px-4 py-2 text-sm rounded-lg bg-surface-2 hover:bg-surface-3 text-text-main font-medium transition-colors cursor-pointer"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          disabled={isShuttingDown}
-          onclick={handleShutdown}
-          class="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors cursor-pointer"
-        >
-          {isShuttingDown ? 'Closing...' : 'Close'}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <!-- Change Log Modal -->
 <ChangelogModal isOpen={isChangelogOpen} onClose={() => (isChangelogOpen = false)} />

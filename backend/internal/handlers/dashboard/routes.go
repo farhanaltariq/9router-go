@@ -80,7 +80,6 @@ func RegisterRoutes(r chi.Router, h *DashboardHandler) {
 		r.Patch("/settings", h.HandleUpdateSettings)
 		r.Get("/settings/database", h.HandleExportDatabase)
 		r.Post("/settings/database", h.HandleImportDatabase)
-		r.Post("/settings/proxy-test", h.HandleProxyTest)
 
 		// Tunnel & Tailscale
 		r.Get("/tunnel/status", h.HandleTunnelStatus)

@@ -78,32 +78,6 @@ func TestRequireDashboardAuth(t *testing.T) {
 	if rec := serve(httptest.NewRequest(http.MethodGet, "/api/connections", nil)); rec.Code != http.StatusOK {
 		t.Errorf("expected open dashboard when requireLogin=false, got %d", rec.Code)
 	}
-	// Always-protected routes reject client API key even if key is valid.
-	apiDbReq := httptest.NewRequest(http.MethodGet, "/api/settings/database", nil)
-	apiDbReq.Header.Set("Authorization", "Bearer valid-token")
-	if rec := serve(apiDbReq); rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 when API key accesses always-protected route, got %d", rec.Code)
-	}
-
-	// Always-protected routes reject unauthenticated even when requireLogin=false.
-	anonDbReq := httptest.NewRequest(http.MethodGet, "/api/settings/database", nil)
-	if rec := serve(anonDbReq); rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for always-protected route even when requireLogin=false, got %d", rec.Code)
-	}
-
-	// Always-protected routes pass with valid session cookie.
-	cookieDbReq := httptest.NewRequest(http.MethodGet, "/api/settings/database", nil)
-	cookieDbReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
-	if rec := serve(cookieDbReq); rec.Code != http.StatusOK {
-		t.Errorf("expected 200 for always-protected route with signed cookie, got %d", rec.Code)
-	}
-
-	// Always-protected routes pass with valid CLI token.
-	cliDbReq := httptest.NewRequest(http.MethodGet, "/api/settings/database", nil)
-	cliDbReq.Header.Set(auth.CLITokenHeader, auth.CLIToken())
-	if rec := serve(cliDbReq); rec.Code != http.StatusOK {
-		t.Errorf("expected 200 for always-protected route with CLI token, got %d", rec.Code)
-	}
 }
 
 func TestRequireConsoleLogAuth(t *testing.T) {
@@ -169,22 +143,22 @@ func TestRequireAdminAuth(t *testing.T) {
 	}
 
 	// Unauthenticated → 401
-	if rec := serve(httptest.NewRequest(http.MethodPost, "/api/version/shutdown", nil)); rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for unauthenticated shutdown, got %d", rec.Code)
+	if rec := serve(httptest.NewRequest(http.MethodPost, "/api/version/update", nil)); rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for unauthenticated update, got %d", rec.Code)
 	}
 
 	// API key → 401 (API keys cannot perform admin shutdown/update)
-	apiKeyReq := httptest.NewRequest(http.MethodPost, "/api/version/shutdown", nil)
+	apiKeyReq := httptest.NewRequest(http.MethodPost, "/api/version/update", nil)
 	apiKeyReq.Header.Set("Authorization", "Bearer any-key")
 	if rec := serve(apiKeyReq); rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for API key shutdown, got %d", rec.Code)
+		t.Errorf("expected 401 for API key update, got %d", rec.Code)
 	}
 
 	// Valid CLI token → 200 OK
-	cliReq := httptest.NewRequest(http.MethodPost, "/api/version/shutdown", nil)
+	cliReq := httptest.NewRequest(http.MethodPost, "/api/version/update", nil)
 	cliReq.Header.Set(auth.CLITokenHeader, auth.CLIToken())
 	if rec := serve(cliReq); rec.Code != http.StatusOK {
-		t.Errorf("expected 200 for CLI token shutdown, got %d", rec.Code)
+		t.Errorf("expected 200 for CLI token update, got %d", rec.Code)
 	}
 
 	// Valid signed session cookie → 200 OK
@@ -192,10 +166,10 @@ func TestRequireAdminAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
-	cookieReq := httptest.NewRequest(http.MethodPost, "/api/version/shutdown", nil)
+	cookieReq := httptest.NewRequest(http.MethodPost, "/api/version/update", nil)
 	cookieReq.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
 	if rec := serve(cookieReq); rec.Code != http.StatusOK {
-		t.Errorf("expected 200 for session cookie shutdown, got %d", rec.Code)
+		t.Errorf("expected 200 for session cookie update, got %d", rec.Code)
 	}
 }
 

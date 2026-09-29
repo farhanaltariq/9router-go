@@ -8,7 +8,6 @@ import (
 	"9router/proxy/internal/handlers/media"
 	"9router/proxy/internal/handlers/oauth"
 	"9router/proxy/internal/handlers/shared"
-	"9router/proxy/internal/handlers/sso"
 	"9router/proxy/internal/handlerutil"
 	"9router/proxy/internal/middleware"
 	"9router/proxy/web"
@@ -144,7 +143,6 @@ func SetupRoutes(r interface {
 // enabled (upstream dashboardGuard).
 func SetupDashboardRoutes(r chi.Router, repo *db.Repo) {
 	dashH := dashboard.NewDashboardHandler(repo)
-	ssoH := sso.NewHandler(repo)
 
 	r.Get("/api/connections", dashH.HandleGetConnections)
 	r.Get("/api/providers", dashH.HandleGetProvidersClient)
@@ -236,12 +234,7 @@ func SetupDashboardRoutes(r chi.Router, repo *db.Repo) {
 	r.Post("/api/tunnel/disable", dashH.HandleTunnelDisable)
 	r.Get("/api/tunnel/tailscale-check", dashH.HandleTailscaleCheck)
 	r.Post("/api/tunnel/tailscale-enable", dashH.HandleTailscaleEnable)
-	r.Post("/api/tunnel/tailscale-disable", dashH.HandleTailscaleDisable)
-
-	// Single Sign-On settings checks + SP metadata (profile page)
-	r.Post("/api/auth/oidc/test", ssoH.HandleOidcTest)
-	r.Post("/api/auth/saml/test", ssoH.HandleSamlTest)
-	r.Get("/api/auth/saml/metadata", ssoH.HandleSamlMetadata)
+	r.Get("/api/tunnel/tailscale-disable", dashH.HandleTailscaleDisable)
 
 	// Mount OAuth routes under dashboard auth so web dashboard can initiate and exchange tokens
 	oauthH := oauth.NewOAuthHandler(repo)
@@ -363,7 +356,6 @@ func SetupServerRouter(r chi.Router, repo *db.Repo, ts *TokenSaverConfig) {
 		chatH := chat.NewChatHandler(repo, ts)
 		r.Post("/api/version/update", chatH.HandleTriggerUpdate)
 		r.Post("/api/version/auto-update", chatH.HandleToggleAutoUpdate)
-		r.Post("/api/version/shutdown", HandleShutdown)
 	})
 
 	// API-key protected domain routes
