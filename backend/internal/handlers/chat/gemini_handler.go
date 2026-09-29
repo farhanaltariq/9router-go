@@ -137,7 +137,7 @@ func (h *ChatHandler) forwardGeminiNativeRequest(
 		}
 		stallReader := proxy.NewStallReaderWithContext(ctx, resp.Body, 0, provider)
 		bodyCloser = stallReader
-		return h.handleGeminiStream(ctx, w, stallReader, translateResponse, metrics)
+		return h.handleGeminiStream(ctx, w, stallReader, translateResponse, metrics, modelName)
 	}
 	return h.handleGeminiNonStream(ctx, w, resp.Body, translateResponse, metrics)
 }
@@ -361,11 +361,11 @@ func (h *ChatHandler) forceRefreshOAuthToken(connectionID string) (string, strin
 
 // handleGeminiStream processes Gemini stream SSE chunks and translates to OpenAI format.
 // The stream drops the first SSE line (model metadata), then translates each content block SSE.
-func (h *ChatHandler) handleGeminiStream(ctx context.Context, w http.ResponseWriter, upstream io.Reader, translateResponse bool, metrics *streamMetrics) error {
+func (h *ChatHandler) handleGeminiStream(ctx context.Context, w http.ResponseWriter, upstream io.Reader, translateResponse bool, metrics *streamMetrics, modelName string) error {
 	hw := proxy.NewHeartbeatWriter(ctx, w, 0)
 	defer hw.Close()
 	flusher := proxy.WriteSSEHeaders(hw)
-	geminiState := &translator.GeminiStreamState{}
+	geminiState := &translator.GeminiStreamState{Model: modelName}
 	start := time.Now()
 	// One session per stream so the OpenAI→Claude translation state cannot
 	// collide across concurrent requests; always cleared on exit.

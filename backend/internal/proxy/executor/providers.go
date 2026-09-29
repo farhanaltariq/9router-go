@@ -190,6 +190,26 @@ func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
 
 	// CommandCode messages require content as array of blocks (never raw string)
 	if rawMsgs, ok := m["messages"].([]any); ok {
+		// Pre-map tool_call_id -> function name from assistant messages
+		tcID2Name := make(map[string]string)
+		for _, rawMsg := range rawMsgs {
+			if msgMap, ok := rawMsg.(map[string]any); ok && msgMap["role"] == "assistant" {
+				if toolCalls, ok := msgMap["tool_calls"].([]any); ok {
+					for _, tcRaw := range toolCalls {
+						if tc, ok := tcRaw.(map[string]any); ok {
+							id, _ := tc["id"].(string)
+							if fn, ok := tc["function"].(map[string]any); ok {
+								name, _ := fn["name"].(string)
+								if id != "" && name != "" {
+									tcID2Name[id] = name
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		var systemTexts []string
 		convertedMsgs := make([]any, 0, len(rawMsgs))
 		for _, rawMsg := range rawMsgs {
@@ -209,6 +229,9 @@ func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
 			case "tool":
 				rawToolCallID, _ := msgMap["tool_call_id"].(string)
 				rawToolName, _ := msgMap["name"].(string)
+				if rawToolName == "" {
+					rawToolName = tcID2Name[rawToolCallID]
+				}
 				convertedMsgs = append(convertedMsgs, map[string]any{
 					"role": "tool",
 					"content": []any{map[string]any{
@@ -304,6 +327,34 @@ func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
 			params["tools"] = tools
 		}
 	}
+
+	// Sanitize max_tokens and remove unsupported fields that trigger 400.
+	maxTokens := 32000
+	if mt, ok := params["max_tokens"]; ok && mt != nil {
+		switch v := mt.(type) {
+		case float64:
+			maxTokens = int(v)
+		case int:
+			maxTokens = v
+		}
+	} else if mct, ok := params["max_completion_tokens"]; ok && mct != nil {
+		switch v := mct.(type) {
+		case float64:
+			maxTokens = int(v)
+		case int:
+			maxTokens = v
+		}
+	}
+	if maxTokens > 128000 {
+		maxTokens = 128000
+	} else if maxTokens <= 0 {
+		maxTokens = 32000
+	}
+	params["max_tokens"] = maxTokens
+	delete(params, "max_completion_tokens")
+	delete(params, "parallel_tool_calls")
+	delete(params, "stream_options")
+	delete(params, "store")
 
 	// Sanitize known-invalid fields upstream rejects with 400.
 	if eff, ok := params["reasoning_effort"].(string); ok {

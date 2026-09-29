@@ -43,6 +43,41 @@ func TestForwardGemini_RelayHeadersForwarded(t *testing.T) {
 	}
 }
 
+func TestForwardGemini_RelayRewritesRootPathToActionPath(t *testing.T) {
+	var gotTarget, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTarget = r.Header.Get("x-relay-target")
+		gotPath = r.Header.Get("x-relay-path")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"candidates":[{}]}`))
+	}))
+	defer srv.Close()
+
+	// When a connection uses an edge relay pool without a path, BuildEdgeRelayHeaders
+	// sets x-relay-path to "/". ForwardGemini must rewrite it to the actual action path.
+	cfg := &providers.ProviderConfig{
+		BaseURL: srv.URL,
+		StaticHeaders: map[string]string{
+			"x-relay-target": "https://daily-cloudcode-pa.googleapis.com",
+			"x-relay-path":   "/",
+		},
+	}
+	body := `{"model":"antigravity","messages":[{"role":"user","content":"hi"}]}`
+	resp, err := ForwardGemini(context.Background(), srv.Client(), cfg, "sk-test", body, true, "proj-123", "gemini-2.5-flash")
+	if err != nil {
+		t.Fatalf("ForwardGemini unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if gotTarget != "https://daily-cloudcode-pa.googleapis.com" {
+		t.Errorf("expected x-relay-target https://daily-cloudcode-pa.googleapis.com, got %q", gotTarget)
+	}
+	if gotPath != "/v1internal:streamGenerateContent?alt=sse" {
+		t.Errorf("expected x-relay-path /v1internal:streamGenerateContent?alt=sse, got %q", gotPath)
+	}
+}
+
 func TestForwardGemini_RelayUsesRelayURL(t *testing.T) {
 	var requestURL string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -116,8 +151,8 @@ func TestForwardGemini_RelayPreservesOtherStaticHeaders(t *testing.T) {
 	cfg := &providers.ProviderConfig{
 		BaseURL: srv.URL,
 		StaticHeaders: map[string]string{
-			"x-relay-target": "https://daily-cloudcode-pa.googleapis.com",
-			"x-relay-path":   "/v1internal:streamGenerateContent?alt=sse",
+			"x-relay-target":  "https://daily-cloudcode-pa.googleapis.com",
+			"x-relay-path":    "/v1internal:streamGenerateContent?alt=sse",
 			"x-custom-header": "custom-value",
 		},
 	}

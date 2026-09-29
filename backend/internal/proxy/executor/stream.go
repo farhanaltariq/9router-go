@@ -1027,7 +1027,11 @@ func handleCommandcodeStream(w http.ResponseWriter, req *Request, upstream io.Re
 
 	flusher, _ := w.(http.Flusher)
 	if !state.Finished {
-		finishChunk := BuildCommandcodeChunk(state, map[string]any{}, "stop")
+		fallbackReason := "stop"
+		if state.ToolIndex > 0 {
+			fallbackReason = "tool_calls"
+		}
+		finishChunk := BuildCommandcodeChunk(state, map[string]any{}, fallbackReason)
 		if _, err := w.Write([]byte(fmt.Sprintf("data: %s\n\n", finishChunk))); err != nil {
 			return err
 		}
@@ -1109,6 +1113,10 @@ func ProcessCommandcodeEvent(event map[string]any, eventType string, state *Comm
 				"function": map[string]any{"name": toolName, "arguments": ""},
 			}},
 		}
+		if state.ChunkIndex == 0 {
+			delta["role"] = "assistant"
+		}
+		state.ChunkIndex++
 		out = append(out, BuildCommandcodeChunk(state, delta, ""))
 
 	case "tool-input-delta":
@@ -1162,6 +1170,7 @@ func ProcessCommandcodeEvent(event map[string]any, eventType string, state *Comm
 
 		delta := map[string]any{
 			"tool_calls": []map[string]any{{
+				"index":    idx,
 				"id":       id,
 				"type":     "function",
 				"function": map[string]any{"name": toolName, "arguments": argsStr},
@@ -1175,6 +1184,10 @@ func ProcessCommandcodeEvent(event map[string]any, eventType string, state *Comm
 
 	case "finish-step":
 		if reason, ok := event["finishReason"].(string); ok {
+			switch reason {
+			case "tool-calls", "tool_use", "tool_calls":
+				reason = "tool_calls"
+			}
 			state.FinishReason = reason
 		}
 
@@ -1184,7 +1197,14 @@ func ProcessCommandcodeEvent(event map[string]any, eventType string, state *Comm
 			if r, ok := event["finishReason"].(string); ok {
 				reason = r
 			}
-			if reason == "" {
+		}
+		switch reason {
+		case "tool-calls", "tool_use", "tool_calls":
+			reason = "tool_calls"
+		case "stop", "":
+			if state.ToolIndex > 0 {
+				reason = "tool_calls"
+			} else {
 				reason = "stop"
 			}
 		}

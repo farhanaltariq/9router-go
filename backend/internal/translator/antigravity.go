@@ -139,7 +139,10 @@ func CloakAntigravityRequest(req *GeminiRequest, clientTool string) (*GeminiRequ
 				continue
 			}
 
-			suffixedName := fn.Name + "_ide"
+			suffixedName := fn.Name
+			if !strings.HasSuffix(suffixedName, "_ide") {
+				suffixedName = suffixedName + "_ide"
+			}
 			toolNameMap[suffixedName] = fn.Name
 			fn.Name = suffixedName
 			clientDecls = append(clientDecls, fn)
@@ -174,12 +177,16 @@ func CloakAntigravityRequest(req *GeminiRequest, clientTool string) (*GeminiRequ
 			partCopy := p
 			if p.FunctionCall != nil && !AntigravityNativeToolNames[p.FunctionCall.Name] {
 				fc := *p.FunctionCall
-				fc.Name = fc.Name + "_ide"
+				if !strings.HasSuffix(fc.Name, "_ide") {
+					fc.Name = fc.Name + "_ide"
+				}
 				partCopy.FunctionCall = &fc
 			}
 			if p.FunctionResponse != nil && !AntigravityNativeToolNames[p.FunctionResponse.Name] {
 				fr := *p.FunctionResponse
-				fr.Name = fr.Name + "_ide"
+				if !strings.HasSuffix(fr.Name, "_ide") {
+					fr.Name = fr.Name + "_ide"
+				}
 				partCopy.FunctionResponse = &fr
 			}
 			cloakedParts[j] = partCopy
@@ -350,12 +357,12 @@ var AntigravityModelSynonyms = map[string]string{
 	"gemini-3-pro-high":          "gemini-pro-agent",
 	"gemini-3-pro-low":           "gemini-3.1-pro-low",
 	// 3.8 flash tiered models -> backend model: gemini-3.8-flash-tiered
-	"gemini-3.8-flash":           "gemini-3.8-flash-tiered",
-	"gemini-3.8-flash-high":      "gemini-3.8-flash-tiered",
-	"gemini-3.8-flash-medium":    "gemini-3.8-flash-tiered",
-	"gemini-3.8-flash-low":       "gemini-3.8-flash-tiered",
-	"gemini-3.8-flash-agent":     "gemini-3.8-flash-tiered",
-	"gemini-3.8-flash-thinking":  "gemini-3.8-flash-tiered",
+	"gemini-3.8-flash":          "gemini-3.8-flash-tiered",
+	"gemini-3.8-flash-high":     "gemini-3.8-flash-tiered",
+	"gemini-3.8-flash-medium":   "gemini-3.8-flash-tiered",
+	"gemini-3.8-flash-low":      "gemini-3.8-flash-tiered",
+	"gemini-3.8-flash-agent":    "gemini-3.8-flash-tiered",
+	"gemini-3.8-flash-thinking": "gemini-3.8-flash-tiered",
 	// 3.7 flash tiered models -> backend model: gemini-3.7-flash-tiered
 	"gemini-3.7-flash":           "gemini-3.7-flash-tiered",
 	"gemini-3.7-flash-high":      "gemini-3.7-flash-tiered",
@@ -365,10 +372,10 @@ var AntigravityModelSynonyms = map[string]string{
 	"gemini-3.7-flash-extra-low": "gemini-3.7-flash-tiered",
 	"gemini-3.7-flash-thinking":  "gemini-3.7-flash-tiered",
 	// 3.6 flash tiered models -> backend model: gemini-3.6-flash-tiered
-	"gemini-3.6-flash":           "gemini-3.6-flash-tiered",
-	"gemini-3.6-flash-high":      "gemini-3.6-flash-tiered",
-	"gemini-3.6-flash-medium":    "gemini-3.6-flash-tiered",
-	"gemini-3.6-flash-low":       "gemini-3.6-flash-tiered",
+	"gemini-3.6-flash":        "gemini-3.6-flash-tiered",
+	"gemini-3.6-flash-high":   "gemini-3.6-flash-tiered",
+	"gemini-3.6-flash-medium": "gemini-3.6-flash-tiered",
+	"gemini-3.6-flash-low":    "gemini-3.6-flash-tiered",
 }
 
 // NormalizeAntigravityModel maps known aliases/synonyms to Antigravity internal backend model names.

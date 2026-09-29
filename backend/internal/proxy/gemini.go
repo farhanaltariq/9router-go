@@ -71,6 +71,17 @@ func ForwardGemini(ctx context.Context, client *http.Client, cfg *providers.Prov
 		}
 	}
 
+	action := "generateContent"
+	if isStream {
+		action = "streamGenerateContent?alt=sse"
+	}
+	var actionPath string
+	if projectID != "" {
+		actionPath = fmt.Sprintf("/v1internal:%s", action)
+	} else {
+		actionPath = fmt.Sprintf("/v1beta/models/%s:%s", modelName, action)
+	}
+
 	// Build URL
 	var requestURL string
 	if cfg.StaticHeaders != nil {
@@ -90,16 +101,7 @@ func ForwardGemini(ctx context.Context, client *http.Client, cfg *providers.Prov
 		} else if idx := strings.Index(baseURL, "/v1/"); idx != -1 {
 			baseURL = baseURL[:idx]
 		}
-
-		action := "generateContent"
-		if isStream {
-			action = "streamGenerateContent?alt=sse"
-		}
-		if projectID != "" {
-			requestURL = fmt.Sprintf("%s/v1internal:%s", baseURL, action)
-		} else {
-			requestURL = fmt.Sprintf("%s/v1beta/models/%s:%s", baseURL, modelName, action)
-		}
+		requestURL = fmt.Sprintf("%s%s", baseURL, actionPath)
 	}
 
 	headers := map[string]string{
@@ -112,6 +114,18 @@ func ForwardGemini(ctx context.Context, client *http.Client, cfg *providers.Prov
 	if cfg.StaticHeaders != nil {
 		for k, v := range cfg.StaticHeaders {
 			headers[k] = v
+		}
+	}
+	if _, hasRelayTarget := headers["x-relay-target"]; hasRelayTarget {
+		relayPath := headers["x-relay-path"]
+		if relayPath == "" || relayPath == "/" {
+			headers["x-relay-path"] = actionPath
+		} else if !strings.Contains(strings.ToLower(relayPath), "generatecontent") {
+			prefix := strings.TrimRight(relayPath, "/")
+			if strings.HasPrefix(actionPath, "/v1beta/") && strings.HasSuffix(prefix, "/v1beta") {
+				prefix = strings.TrimSuffix(prefix, "/v1beta")
+			}
+			headers["x-relay-path"] = prefix + actionPath
 		}
 	}
 

@@ -19,6 +19,8 @@ type GeminiStreamState struct {
 	Usage                *OpenAIUsage
 	FinishReason         string
 	LastThoughtSignature string
+	HasToolCalls         bool
+	ToolCallIndex        int
 }
 
 // GeminiFileData represents remote or uploaded files referenced by URI.
@@ -616,6 +618,7 @@ func TranslateGeminiChunkToOpenAI(chunk []byte, state *GeminiStreamState) ([]byt
 					delta["reasoning_content"] = part.Text
 				}
 				if part.FunctionCall != nil {
+					state.HasToolCalls = true
 					args, err := json.Marshal(part.FunctionCall.Args)
 					if err != nil {
 						args = []byte("{}")
@@ -630,9 +633,11 @@ func TranslateGeminiChunkToOpenAI(chunk []byte, state *GeminiStreamState) ([]byt
 						StoreGeminiThoughtSignature(id, sig, state.MessageId, state.Model)
 						id += "__ts__" + sig
 					}
+					idx := state.ToolCallIndex
+					state.ToolCallIndex++
 					delta["tool_calls"] = []map[string]any{
 						{
-							"index": 0,
+							"index": idx,
 							"id":    id,
 							"type":  "function",
 							"function": map[string]any{
@@ -672,6 +677,9 @@ func TranslateGeminiChunkToOpenAI(chunk []byte, state *GeminiStreamState) ([]byt
 				openAIStop = "stop"
 			default:
 				openAIStop = "stop"
+			}
+			if state.HasToolCalls && openAIStop == "stop" {
+				openAIStop = "tool_calls"
 			}
 
 			inputTokens, outputTokens, cachedTokens := 0, 0, 0
