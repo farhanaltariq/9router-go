@@ -127,8 +127,27 @@ func HandleUsageStats(repo *db.Repo) http.HandlerFunc {
 		nodeNameMap := make(map[string]string)
 		if nodes, err := repo.GetProviderNodes(); err == nil {
 			for _, n := range nodes {
-				if n.ID != "" && n.Name != nil && *n.Name != "" {
-					nodeNameMap[n.ID] = *n.Name
+				if n.ID != "" {
+					name := ""
+					if n.Name != nil && *n.Name != "" {
+						name = *n.Name
+					} else if n.Data != "" {
+						var d struct {
+							Name   string `json:"name"`
+							Prefix string `json:"prefix"`
+						}
+						if json.Unmarshal([]byte(n.Data), &d) == nil {
+							if d.Name != "" {
+								name = d.Name
+							} else if d.Prefix != "" {
+								name = d.Prefix
+							}
+						}
+					}
+					if name == "" {
+						name = n.ID
+					}
+					nodeNameMap[n.ID] = name
 				}
 			}
 		}

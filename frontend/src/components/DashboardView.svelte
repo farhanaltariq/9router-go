@@ -14,6 +14,7 @@
   import Card from '../lib/ui/Card.svelte'
   import Toggle from '../lib/ui/Toggle.svelte'
   import { fmt, fmtCost, timeAgo, type Period, type RecentRequestItem, type RequestDetailItem, type StatsData } from './analytics/types'
+  import { PROVIDER_CATALOG } from '../lib/providers'
 
   interface Props {
     connections?: ProviderConnection[]
@@ -263,6 +264,15 @@
     visibleKeyIds = next
   }
 
+  function getProviderDisplayName(providerId?: string): string {
+    if (!providerId) return ''
+    const node = providerNodes.find((n) => n.id === providerId)
+    if (node) return node.name || node.prefix || node.id
+    const cat = PROVIDER_CATALOG.find((p) => p.id === providerId || p.alias === providerId)
+    if (cat?.name) return cat.name
+    return providerId
+  }
+
   function getStatusEmoji(conn: ProviderConnection): string {
     if (conn.isActive === false) return '⏸️'
     if (conn.testStatus === 'error' || conn.errorCode) return '❌'
@@ -425,7 +435,7 @@
                     {data.rawModel || key}
                   </span>
                   {#if data.provider}
-                    <span class="text-xs text-text-muted capitalize">{data.provider}</span>
+                    <span class="text-xs text-text-muted capitalize">{getProviderDisplayName(data.provider)}</span>
                   {/if}
                 </div>
                 <span class="w-16 text-right text-sm tabular-nums text-text-main shrink-0">
@@ -596,7 +606,7 @@
                   <div class="flex items-center gap-2 min-w-0">
                     <span class="text-sm">{getStatusEmoji(conn)}</span>
                     <span class="text-sm font-medium capitalize text-text-main truncate">
-                      {conn.provider}
+                      {getProviderDisplayName(conn.provider)}
                     </span>
                   </div>
                   <span class="text-xs text-text-muted truncate ml-2">
@@ -617,6 +627,7 @@
         {detailsTotal}
         {detailsPage}
         {detailsLoading}
+        {providerNodes}
         onPageChange={(p) => loadDetails(p)}
         onRefresh={() => loadDetails(detailsPage)}
       />

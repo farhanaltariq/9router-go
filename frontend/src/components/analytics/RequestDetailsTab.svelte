@@ -4,6 +4,8 @@
   import Button from '../../lib/ui/Button.svelte'
   import Card from '../../lib/ui/Card.svelte'
   import { getIconPath } from '../connections/types'
+  import { PROVIDER_CATALOG } from '../../lib/providers'
+  import type { ProviderNode } from '../../api/client'
   import { cachedTokensFor, fmt, timeAgo, type RequestDetailItem } from './types'
 
   interface Props {
@@ -11,6 +13,7 @@
     detailsTotal?: number
     detailsPage?: number
     detailsLoading?: boolean
+    providerNodes?: ProviderNode[]
     onPageChange: (page: number) => void
     onRefresh: () => void
   }
@@ -20,11 +23,26 @@
     detailsTotal = 0,
     detailsPage = 1,
     detailsLoading = false,
+    providerNodes = [],
     onPageChange,
     onRefresh,
   }: Props = $props()
 
   let selectedDetail = $state<RequestDetailItem | null>(null)
+
+  function formatProviderName(providerId?: string): string {
+    if (!providerId) return 'unknown'
+    const node = providerNodes.find((n) => n.id === providerId)
+    if (node) return node.name || node.prefix || node.id
+    const cat = PROVIDER_CATALOG.find((p) => p.id === providerId || p.alias === providerId)
+    if (cat?.name) return cat.name
+    return providerId
+  }
+
+  function getProviderIcon(providerId?: string): string {
+    const node = providerNodes.find((n) => n.id === providerId)
+    return getIconPath(providerId, node?.apiType)
+  }
 
 </script>
 
@@ -79,8 +97,8 @@
                 <div class="flex items-center gap-1.5">
                   {#if item.provider}
                     <img
-                      src={getIconPath(item.provider)}
-                      alt={item.provider}
+                      src={getProviderIcon(item.provider)}
+                      alt={formatProviderName(item.provider)}
                       class="w-3.5 h-3.5 object-contain rounded shrink-0"
                       onerror={(e) => {
                         (e.currentTarget as HTMLElement).style.display = 'none'
@@ -88,14 +106,14 @@
                       loading="lazy"
                     />
                   {/if}
-                  <Badge variant="neutral" size="sm">{item.provider || 'unknown'}</Badge>
+                  <Badge variant="neutral" size="sm">{formatProviderName(item.provider)}</Badge>
                 </div>
               </td>
               <td class="py-3 px-4 font-bold text-text-main max-w-[140px] truncate">
                 <div class="flex items-center gap-1.5">
                   {#if item.provider}
                     <img
-                      src={getIconPath(item.provider)}
+                      src={getProviderIcon(item.provider)}
                       alt={item.model}
                       class="w-3.5 h-3.5 object-contain rounded shrink-0 bg-surface-2 p-0.5 border border-border/40"
                       onerror={(e) => {
@@ -174,7 +192,7 @@
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full {selectedDetail.status === 'success' ? 'bg-success' : 'bg-error'}"></span>
           <h3 class="font-headline text-base font-bold text-text-main">{selectedDetail.model}</h3>
-          <Badge variant="neutral" size="sm">{selectedDetail.provider || 'unknown'}</Badge>
+          <Badge variant="neutral" size="sm">{formatProviderName(selectedDetail.provider)}</Badge>
         </div>
         <button
           type="button"

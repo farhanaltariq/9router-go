@@ -119,7 +119,7 @@
         {#each customNodes as node (node.id)}
           <ProviderCard
             id={node.id}
-            name={node.name}
+            name={node.name || node.prefix || node.id}
             apiType={node.apiType}
             stats={node.stats}
             onClick={() => onSelectProvider(node.id)}

@@ -60,11 +60,15 @@ func (h *DashboardHandler) HandleGetProviderNodes(w http.ResponseWriter, r *http
 
 		if n.Data != "" {
 			var dataObj struct {
+				Name    string `json:"name"`
 				Prefix  string `json:"prefix"`
 				APIType string `json:"apiType"`
 				BaseURL string `json:"baseUrl"`
 			}
 			if err := json.Unmarshal([]byte(n.Data), &dataObj); err == nil {
+				if item.Name == "" && dataObj.Name != "" {
+					item.Name = dataObj.Name
+				}
 				item.Prefix = dataObj.Prefix
 				item.APIType = dataObj.APIType
 				item.BaseURL = dataObj.BaseURL

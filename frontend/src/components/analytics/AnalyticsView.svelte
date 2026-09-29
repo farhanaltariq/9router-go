@@ -216,7 +216,7 @@
   let nodeNameById = $derived.by(() => {
     const m = new Map<string, string>()
     for (const n of providerNodes || []) {
-      if (n?.id && n?.name) m.set(n.id, n.name)
+      if (n?.id) m.set(n.id, n.name || n.prefix || n.id)
     }
     return m
   })
@@ -414,6 +414,7 @@
       {detailsTotal}
       {detailsPage}
       {detailsLoading}
+      {providerNodes}
       onPageChange={loadDetails}
       onRefresh={() => loadDetails(detailsPage)}
     />
