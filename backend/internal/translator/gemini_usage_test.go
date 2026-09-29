@@ -1,8 +1,103 @@
 package translator
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 )
+
+func TestTranslateGeminiChunkToOpenAI_FunctionCallFinishReason(t *testing.T) {
+	// Simulate a Gemini stream: functionCall chunk, then STOP finish chunk.
+	fnChunk := `{
+		"candidates": [{
+			"content": {
+				"parts": [{"functionCall": {"name": "get_weather", "args": {"city": "Jakarta"}}}]
+			}
+		}]
+	}`
+
+	finishChunk := `{
+		"candidates": [{
+			"content": {"parts": []},
+			"finishReason": "STOP"
+		}],
+		"usageMetadata": {
+			"promptTokenCount": 100,
+			"candidatesTokenCount": 20
+		}
+	}`
+
+	state := &GeminiStreamState{}
+
+	// First chunk: function call
+	out1, err := TranslateGeminiChunkToOpenAI([]byte(fnChunk), state)
+	if err != nil {
+		t.Fatalf("fn chunk: %v", err)
+	}
+	if len(out1) == 0 {
+		t.Fatal("expected output from function call chunk")
+	}
+	if !state.HasToolCalls {
+		t.Fatal("expected HasToolCalls=true after functionCall part")
+	}
+
+	// Second chunk: finish with STOP
+	out2, err := TranslateGeminiChunkToOpenAI([]byte(finishChunk), state)
+	if err != nil {
+		t.Fatalf("finish chunk: %v", err)
+	}
+	if len(out2) == 0 {
+		t.Fatal("expected output from finish chunk")
+	}
+
+	// Extract the last SSE data line from the output
+	lastLine := lastSSEData(out2)
+	if lastLine == "" {
+		t.Fatal("no SSE data line found in finish output")
+	}
+	if !strings.Contains(lastLine, `"finish_reason":"tool_calls"`) &&
+		!strings.Contains(lastLine, `"finish_reason": "tool_calls"`) {
+		t.Errorf("expected finish_reason tool_calls in final chunk, got: %s", lastLine)
+	}
+}
+
+func TestTranslateGeminiChunkToOpenAI_NoToolCallFinishReasonStop(t *testing.T) {
+	// Plain text + STOP should remain "stop"
+	textChunk := `{
+		"candidates": [{
+			"content": {"parts": [{"text": "Hello"}]},
+			"finishReason": "STOP"
+		}],
+		"usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5}
+	}`
+
+	state := &GeminiStreamState{}
+	out, err := TranslateGeminiChunkToOpenAI([]byte(textChunk), state)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if state.HasToolCalls {
+		t.Error("expected HasToolCalls=false for text-only chunk")
+	}
+
+	lastLine := lastSSEData(out)
+	if strings.Contains(lastLine, `"finish_reason":"tool_calls"`) ||
+		strings.Contains(lastLine, `"finish_reason": "tool_calls"`) {
+		t.Errorf("text-only stream must not get tool_calls finish_reason: %s", lastLine)
+	}
+}
+
+// lastSSEData extracts the JSON payload from the last "data: ..." line.
+func lastSSEData(b []byte) string {
+	var last string
+	for _, line := range bytes.Split(b, []byte("\n")) {
+		s := strings.TrimSpace(string(line))
+		if strings.HasPrefix(s, "data: ") {
+			last = strings.TrimPrefix(s, "data: ")
+		}
+	}
+	return last
+}
 
 func TestTranslateGeminiChunkToOpenAI_CachedTokens(t *testing.T) {
 	chunkJSON := `{

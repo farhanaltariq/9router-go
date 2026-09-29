@@ -3,6 +3,7 @@ package chat
 import (
 	"bytes"
 	json "encoding/json/v2"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -475,5 +476,256 @@ func TestE2E_Gemini38_FlashHigh_Stream_ToolCall(t *testing.T) {
 	// Just verify we got some data and finish
 	if !strings.Contains(body, "finish_reason") && !strings.Contains(body, "[DONE]") {
 		t.Errorf("expected finish_reason or [DONE] in stream, got %s", body)
+	}
+	// Tool calls must produce finish_reason="tool_calls", not "stop"
+	if !strings.Contains(body, `"finish_reason":"tool_calls"`) && !strings.Contains(body, `"finish_reason": "tool_calls"`) {
+		t.Errorf("expected finish_reason tool_calls in stream, got: %s", body)
+	}
+}
+
+// TestE2E_Gemini38_Stream_TextOnly_FinishReasonStop verifies that a text-only
+// Gemini stream (no tool calls) correctly produces finish_reason="stop".
+func TestE2E_Gemini38_Stream_TextOnly_FinishReasonStop(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, _ := w.(http.Flusher)
+		_, _ = w.Write([]byte(`data: {"candidates": [{"content": {"parts": [{"text": "Hello there"}], "role": "model"}, "finishReason": "STOP"}], "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5}}` + "\n\n"))
+		flusher.Flush()
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+		flusher.Flush()
+	}))
+	defer upstream.Close()
+
+	database, cleanup := setupChatTestDB(t)
+	defer cleanup()
+
+	agData, _ := json.Marshal(map[string]any{
+		"apiKey":      "test-ag-key-38-text",
+		"accessToken": "test-ag-key-38-text",
+		"baseUrl":     upstream.URL,
+		"projectId":   "test-proj-38",
+		"providerSpecificData": map[string]any{"projectId": "test-proj-38"},
+	})
+	if _, err := database.Exec(`INSERT INTO providerConnections (id, provider, authType, name, priority, isActive, data, createdAt, updatedAt) VALUES
+		('conn-ag-38-text', 'antigravity', 'oauth', 'AG 3.8 Text', 1, 1, ?, '2026-09-03T00:00:00Z', '2026-09-03T00:00:00Z')`, string(agData)); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	repo := db.NewRepo(database)
+	handler := NewChatHandler(repo)
+
+	reqBody := `{
+		"model": "antigravity/gemini-3.8-flash-high",
+		"messages": [{"role": "user", "content": "Hello"}],
+		"stream": true
+	}`
+
+	req := httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewReader([]byte(reqBody)))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.HandleChatCompletions(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	t.Logf("stream body: %s", body)
+	if !strings.Contains(body, "Hello there") {
+		t.Errorf("expected 'Hello there' in stream, got %s", body)
+	}
+	if strings.Contains(body, `"finish_reason":"tool_calls"`) || strings.Contains(body, `"finish_reason": "tool_calls"`) {
+		t.Errorf("text-only stream must not get tool_calls finish_reason, got: %s", body)
+	}
+}
+
+// TestE2E_Gemini38_MultiTurnToolExecution tests the complete multi-turn tool flow through HandleChatCompletions:
+// Turn 1: User sends prompt with tools -> Antigravity streams tool call -> Proxy returns OpenAI SSE with finish_reason="tool_calls".
+// Turn 2: Client sends tool result (role="tool") -> Proxy converts to Gemini functionResponse -> Antigravity streams answer.
+func TestE2E_Gemini38_MultiTurnToolExecution(t *testing.T) {
+	turn := 1
+	var capturedTurn2GeminiReq map[string]any
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, _ := w.(http.Flusher)
+
+		if turn == 1 {
+			chunk := `data: {"candidates": [{"content": {"parts": [{"thoughtSignature": "` + translator.DefaultThinkingSignature[:64] + `", "functionCall": {"name": "get_stock_price_ide", "args": {"symbol": "NVDA"}}}], "role": "model"}, "finishReason": "STOP"}]}` + "\n\n"
+			_, _ = w.Write([]byte(chunk))
+			flusher.Flush()
+			_, _ = w.Write([]byte("data: [DONE]\n\n"))
+			flusher.Flush()
+		} else {
+			data, _ := io.ReadAll(r.Body)
+			// Unwrap Antigravity wrapper if present
+			var envelope struct {
+				Request map[string]any `json:"request"`
+			}
+			if err := json.Unmarshal(data, &envelope); err == nil && len(envelope.Request) > 0 {
+				capturedTurn2GeminiReq = envelope.Request
+			} else {
+				_ = json.Unmarshal(data, &capturedTurn2GeminiReq)
+			}
+
+			chunk := `data: {"candidates": [{"content": {"parts": [{"text": "NVDA is currently trading at $135.50."}], "role": "model"}, "finishReason": "STOP"}], "usageMetadata": {"promptTokenCount": 50, "candidatesTokenCount": 15}}` + "\n\n"
+			_, _ = w.Write([]byte(chunk))
+			flusher.Flush()
+			_, _ = w.Write([]byte("data: [DONE]\n\n"))
+			flusher.Flush()
+		}
+	}))
+	defer upstream.Close()
+
+	database, cleanup := setupChatTestDB(t)
+	defer cleanup()
+
+	agData, _ := json.Marshal(map[string]any{
+		"apiKey":      "test-ag-key-38-multiturn",
+		"accessToken": "test-ag-key-38-multiturn",
+		"baseUrl":     upstream.URL,
+		"projectId":   "test-proj-38",
+		"providerSpecificData": map[string]any{"projectId": "test-proj-38"},
+	})
+	if _, err := database.Exec(`INSERT INTO providerConnections (id, provider, authType, name, priority, isActive, data, createdAt, updatedAt) VALUES
+		('conn-ag-38-multiturn', 'antigravity', 'oauth', 'AG 3.8 MultiTurn', 1, 1, ?, '2026-09-03T00:00:00Z', '2026-09-03T00:00:00Z')`, string(agData)); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	repo := db.NewRepo(database)
+	handler := NewChatHandler(repo)
+
+	// --- Turn 1 ---
+	reqBody1 := `{
+		"model": "antigravity/gemini-3.8-flash-high",
+		"messages": [{"role": "user", "content": "What is NVDA price?"}],
+		"stream": true,
+		"tools": [{
+			"type": "function",
+			"function": {"name": "get_stock_price", "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}}}}
+		}]
+	}`
+	req1 := httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewReader([]byte(reqBody1)))
+	req1.Header.Set("Content-Type", "application/json")
+	rec1 := httptest.NewRecorder()
+
+	handler.HandleChatCompletions(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("turn 1 expected 200, got %d: %s", rec1.Code, rec1.Body.String())
+	}
+	body1 := rec1.Body.String()
+	t.Logf("Antigravity Turn 1 output:\n%s", body1)
+
+	if !strings.Contains(body1, `"finish_reason":"tool_calls"`) && !strings.Contains(body1, `"finish_reason": "tool_calls"`) {
+		t.Errorf("turn 1 must have finish_reason: tool_calls, got: %s", body1)
+	}
+	if !strings.Contains(body1, "get_stock_price") {
+		t.Errorf("turn 1 must contain uncloaked get_stock_price, got: %s", body1)
+	}
+
+	// Extract generated tool_call_id from turn 1 response
+	var toolCallID string
+	for _, line := range strings.Split(body1, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "data: {") {
+			var chunk map[string]any
+			if json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &chunk) == nil {
+				if choices, ok := chunk["choices"].([]any); ok && len(choices) > 0 {
+					choice := choices[0].(map[string]any)
+					if delta, ok := choice["delta"].(map[string]any); ok {
+						if tcs, ok := delta["tool_calls"].([]any); ok && len(tcs) > 0 {
+							tc := tcs[0].(map[string]any)
+							if id, ok := tc["id"].(string); ok && id != "" {
+								toolCallID = id
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if toolCallID == "" {
+		t.Fatal("could not extract toolCallID from turn 1 stream")
+	}
+	t.Logf("Extracted toolCallID: %s", toolCallID)
+
+	// --- Turn 2 ---
+	turn = 2
+	reqBody2 := `{
+		"model": "antigravity/gemini-3.8-flash-high",
+		"messages": [
+			{"role": "user", "content": "What is NVDA price?"},
+			{"role": "assistant", "tool_calls": [{"id": "` + toolCallID + `", "type": "function", "function": {"name": "get_stock_price", "arguments": "{\"symbol\":\"NVDA\"}"}}]},
+			{"role": "tool", "tool_call_id": "` + toolCallID + `", "content": "{\"price\": 135.50}"}
+		],
+		"stream": true
+	}`
+	req2 := httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewReader([]byte(reqBody2)))
+	req2.Header.Set("Content-Type", "application/json")
+	rec2 := httptest.NewRecorder()
+
+	handler.HandleChatCompletions(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("turn 2 expected 200, got %d: %s", rec2.Code, rec2.Body.String())
+	}
+	body2 := rec2.Body.String()
+	t.Logf("Antigravity Turn 2 output:\n%s", body2)
+
+	if !strings.Contains(body2, "NVDA is currently trading at $135.50.") {
+		t.Errorf("turn 2 must contain final answer, got: %s", body2)
+	}
+	if !strings.Contains(body2, `"finish_reason":"stop"`) && !strings.Contains(body2, `"finish_reason": "stop"`) {
+		t.Errorf("turn 2 must have finish_reason: stop, got: %s", body2)
+	}
+
+	// Verify upstream Gemini received the tool response as functionResponse
+	contents, _ := capturedTurn2GeminiReq["contents"].([]any)
+	if len(contents) < 3 {
+		t.Fatalf("expected at least 3 contents in Gemini request, got %d", len(contents))
+	}
+	turn3Content := contents[len(contents)-1].(map[string]any)
+	parts, _ := turn3Content["parts"].([]any)
+	if len(parts) == 0 {
+		t.Fatalf("expected parts in turn 3 content")
+	}
+	fnRespPart, _ := parts[0].(map[string]any)
+	fnResp, _ := fnRespPart["functionResponse"].(map[string]any)
+	if fnResp == nil {
+		t.Fatalf("expected functionResponse in turn 3 part, got: %v", fnRespPart)
+	}
+	if fnResp["name"] != "get_stock_price_ide" && fnResp["name"] != "get_stock_price" {
+		t.Errorf("expected functionResponse name get_stock_price(_ide), got: %v", fnResp["name"])
+	}
+}
+
+// TestE2E_Gemini38_MultipleToolCalls_DistinctIndices verifies that when Gemini streams multiple
+// function calls, each tool call receives a distinct incremental index (0, 1, ...).
+func TestE2E_Gemini38_MultipleToolCalls_DistinctIndices(t *testing.T) {
+	state := &translator.GeminiStreamState{}
+	chunk := []byte(`{
+		"candidates": [{
+			"content": {
+				"role": "model",
+				"parts": [
+					{"functionCall": {"name": "tool_a", "args": {"x": 1}}},
+					{"functionCall": {"name": "tool_b", "args": {"y": 2}}}
+				]
+			}
+		}]
+	}`)
+
+	out, err := translator.TranslateGeminiChunkToOpenAI(chunk, state)
+	if err != nil {
+		t.Fatalf("TranslateGeminiChunkToOpenAI error: %v", err)
+	}
+	outStr := string(out)
+	t.Logf("Multiple tool calls output:\n%s", outStr)
+
+	if !strings.Contains(outStr, `"index":0`) && !strings.Contains(outStr, `"index": 0`) {
+		t.Errorf("expected index 0 for first tool call, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, `"index":1`) && !strings.Contains(outStr, `"index": 1`) {
+		t.Errorf("expected index 1 for second tool call, got: %s", outStr)
 	}
 }
