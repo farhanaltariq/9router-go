@@ -158,6 +158,14 @@ export async function fetchSuggestedModels(fetcher: {
   }
 }
 
+export interface ProviderModelItem {
+  id: string
+  name?: string
+  isCustom?: boolean
+  caps: { vision: boolean; reasoning: boolean }
+  kind?: string
+}
+
 export function buildAvailableModels(
   builtInModels: Array<{ id: string; name?: string; kind?: string; type?: string }>,
   providerCustomModels: CustomModelData[]

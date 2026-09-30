@@ -63,7 +63,7 @@
     ></div>
 
     <div
-      class="relative w-full bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] fade-in {sizes[size]} {klass}"
+      class="relative w-full bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) fade-in {sizes[size]} {klass}"
     >
       {#if title || showTrafficLights}
         <div class="flex items-center justify-between p-2 border-b border-border-subtle">
@@ -91,7 +91,7 @@
             type="button"
             onclick={() => onClose?.()}
             aria-label="Close"
-            class="md:hidden p-1.5 rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors"
+            class="md:hidden p-1.5 rounded-brand text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors"
           >
             <span class="material-symbols-outlined text-[20px]">close</span>
           </button>

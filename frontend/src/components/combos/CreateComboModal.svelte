@@ -37,7 +37,7 @@
     onUpdateModels,
   }: Props = $props()
 
-  let modalName = $state(editingCombo?.name || '')
+  let modalName = $derived(editingCombo?.name || '')
   let modalNameError = $state('')
   let editingIdx = $state<number | null>(null)
   let editDraft = $state('')
@@ -115,23 +115,22 @@
 
     <!-- Models -->
     <div>
-      <label class="text-sm font-medium mb-1.5 block">Models</label>
+      <label for="combo-models-list" class="text-sm font-medium mb-1.5 block">Models</label>
 
       {#if models.length === 0}
-        <div class="text-center py-4 border border-dashed border-black/10 dark:border-white/10 rounded-lg bg-black/[0.01] dark:bg-white/[0.01]">
+        <div class="text-center py-4 border border-dashed border-black/10 dark:border-white/10 rounded-lg bg-black/1 dark:bg-white/1">
           <Layers class="w-6 h-6 text-text-muted mx-auto mb-1 opacity-50" />
           <p class="text-xs text-text-muted">No models added yet</p>
         </div>
       {:else}
-        <div class="flex flex-col gap-1 max-h-[55vh] overflow-y-auto sm:max-h-[350px]">
+        <div class="flex flex-col gap-1 max-h-[55vh] overflow-y-auto sm:max-h-87.5">
           {#each models as model, idx}
             {@const caps = getModelCaps(model)}
-            <div class="group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 bg-black/[0.02] hover:bg-black/[0.04] dark:bg-white/[0.02] dark:hover:bg-white/[0.04] transition-colors">
+            <div class="group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 bg-black/2 hover:bg-black/4 dark:bg-white/2 dark:hover:bg-white/4 transition-colors">
               <GripVertical class="w-3.5 h-3.5 text-text-muted cursor-grab shrink-0" />
               <span class="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">{idx + 1}</span>
               {#if editingIdx === idx}
                 <input
-                  autofocus
                   bind:value={editDraft}
                   onblur={() => commitEdit(idx)}
                   onkeydown={(e) => {
@@ -153,10 +152,10 @@
                 </div>
               {/if}
               {#if caps.vision}
-                <Eye class="w-3 h-3 text-blue-500 shrink-0" title="Vision — Supports image input" />
+                <Eye class="w-3 h-3 text-blue-500 shrink-0" />
               {/if}
               {#if caps.reasoning}
-                <Brain class="w-3 h-3 text-amber-500 shrink-0" title="Reasoning — Supports reasoning / thinking" />
+                <Brain class="w-3 h-3 text-amber-500 shrink-0" />
               {/if}
               <div class="flex shrink-0 items-center gap-0.5">
                 <button

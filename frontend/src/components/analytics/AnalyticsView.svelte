@@ -352,7 +352,7 @@
         onRefresh={() => loadStats(period)}
       />
       <!-- Recent Requests Card -->
-      <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-4 flex min-w-0 flex-col overflow-hidden" style="height: 480px">
+      <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-4 flex min-w-0 flex-col overflow-hidden" style="height: 480px">
         <div class="px-1 py-2 border-b border-border shrink-0">
           <span class="text-xs font-semibold text-text-muted uppercase tracking-wide">Recent Requests</span>
         </div>
@@ -363,12 +363,12 @@
           </div>
         {:else}
           <div class="flex-1 overflow-y-auto">
-            <table class="w-full table-fixed min-w-[280px] border-collapse text-xs">
+            <table class="w-full table-fixed min-w-70 border-collapse text-xs">
               <colgroup>
-                <col class="w-[20px]" />
+                <col class="w-5" />
                 <col />
-                <col class="w-[96px]" />
-                <col class="w-[56px]" />
+                <col class="w-24" />
+                <col class="w-14" />
               </colgroup>
               <thead class="sticky top-0 bg-bg z-10">
                 <tr class="border-b border-border">

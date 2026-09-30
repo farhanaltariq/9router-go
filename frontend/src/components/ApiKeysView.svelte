@@ -1,8 +1,7 @@
 <script lang="ts">
   import {
     Check,
-    Copy,
-    Key,
+    ExternalLink,
     Loader2,
     Plus,
     Power,

@@ -37,8 +37,8 @@
   import { proxyBadgeInfo } from './proxyBadge'
   import AddConnectionModal from './AddConnectionModal.svelte'
   import AddCustomModelModal from './AddCustomModelModal.svelte'
-  import AddCompatibleNodeModal from './AddCompatibleNodeModal.svelte'
   import EditCompatibleNodeModal from './EditCompatibleNodeModal.svelte'
+  import { writeCallback } from '../../lib/oauth-handoff'
 
   interface Props {
     providerId: string
@@ -90,9 +90,6 @@
   // Upstream per-provider button labels.
   let oauthButtonLabel = $derived('OAuth')
   let apiKeyButtonLabel = $derived('API Key')
-  let isDeviceOAuth = $derived(
-    providerId === 'github' || providerId === 'codebuddy-cn' || providerId === 'codebuddy-intl'
-  )
   let isNoAuth = $derived(selectedCatalogItem?.noAuth === true || selectedCatalogItem?.category === 'free')
   let hasRiskNotice = $derived(providerId === 'antigravity' || Boolean(selectedCatalogItem?.notice?.text?.includes('RISK_NOTICE')))
 
@@ -254,11 +251,14 @@
   let pkceState = $state('')
   let pkceRedirectUri = $state('')
   let deviceUserCode = $state('')
-  let deviceCode = $state('')
-  let devicePollTimer: ReturnType<typeof setInterval> | null = $state(null)
   // OAuth auto-handoff: callback tab writes to storage + BroadcastChannel,
   // this modal restores the pending session and auto-submits.
   let autoSubmitted = $state(false)
+
+  function dashboardOrigin(): string {
+    if (typeof window !== 'undefined') return window.location.origin
+    return 'http://localhost:20130'
+  }
 
   function dashboardCallback(): string {
     return dashboardCallbackURL(dashboardOrigin())
@@ -443,7 +443,7 @@
       }
 
       // Extract Round Robin strategy
-      const strategy = settingsData?.providerStrategies?.[providerId]
+      const strategy = (settingsData as any)?.providerStrategies?.[providerId]
       isRoundRobin = strategy?.fallbackStrategy === 'round-robin'
       stickyLimit = String(strategy?.stickyRoundRobinLimit ?? 1)
 
@@ -1510,7 +1510,7 @@
 
   <!-- 2. Compatible Node details (if custom node) — upstream parity: endpoint line + Add API Key / Edit / Delete -->
   {#if selectedNode}
-    <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+    <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
       <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="min-w-0">
           <h2 class="text-lg font-semibold">
@@ -1526,7 +1526,7 @@
           <button
             type="button"
             onclick={openAddKeyModal}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-7 px-3 text-xs rounded-[8px] w-full sm:w-auto"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-7 px-3 text-xs rounded-lg w-full sm:w-auto"
           >
             <span class="material-symbols-outlined text-[18px]">add</span>
             Add API Key
@@ -1534,7 +1534,7 @@
           <button
             type="button"
             onclick={() => (showEditNodeModal = true)}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-[8px] w-full sm:w-auto"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-lg w-full sm:w-auto"
           >
             <span class="material-symbols-outlined text-[18px]">edit</span>
             Edit
@@ -1542,7 +1542,7 @@
           <button
             type="button"
             onclick={() => handleDeleteProviderNode(selectedNode!.id)}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-[8px] w-full sm:w-auto"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-lg w-full sm:w-auto"
           >
             <span class="material-symbols-outlined text-[18px]">delete</span>
             Delete
@@ -1554,7 +1554,7 @@
 
   {#if isNoAuth}
     <!-- Free Provider: NoAuthProxyCard -->
-    <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6 flex flex-col gap-4">
+    <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6 flex flex-col gap-4">
       <div class="flex items-start gap-3">
         <span class="material-symbols-outlined text-[20px] text-primary mt-0.5">lock_open</span>
         <div class="flex-1 min-w-0">
@@ -1635,7 +1635,7 @@
     </div>
   {:else}
   <!-- 3. Connections Card -->
-  <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+  <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
     <!-- Header -->
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h2 class="text-lg font-semibold">Connections</h2>
@@ -1644,7 +1644,7 @@
           <button
             type="button"
             onclick={handleDeleteSelected}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 h-7 px-3 text-xs rounded-[8px]"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 h-7 px-3 text-xs rounded-lg"
           >
             <span class="material-symbols-outlined text-[18px]">delete</span>
             Delete Selected ({selectedConnIds.length})
@@ -1655,7 +1655,7 @@
           <button
             type="button"
             onclick={() => (showApplyProxyModal = true)}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-[8px]"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-lg"
           >
             <span class="material-symbols-outlined text-[18px]">lan</span>
             Apply Proxy
@@ -1666,7 +1666,7 @@
           type="button"
           onclick={runOneByOneTest}
           disabled={isTestingOneByOne || providerConnections.length === 0}
-          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-[8px]"
+          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-lg"
         >
           <span class="material-symbols-outlined text-[18px] {isTestingOneByOne ? 'animate-spin text-primary' : ''}">sync</span>
           {isTestingOneByOne ? 'Testing Connection One-by-One...' : 'Test Connection One-by-One'}
@@ -1677,7 +1677,7 @@
             type="button"
             onclick={stopOneByOneTest}
             disabled={isStoppingOneByOne}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed bg-transparent hover:bg-surface-2 text-text-muted hover:text-text-main h-7 px-3 text-xs rounded-[8px]"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed bg-transparent hover:bg-surface-2 text-text-muted hover:text-text-main h-7 px-3 text-xs rounded-lg"
           >
             <span class="material-symbols-outlined text-[18px]">stop</span>
             {isStoppingOneByOne ? 'Stopping...' : 'Stop'}
@@ -1717,7 +1717,7 @@
 
     <!-- One-by-One summary (upstream parity) -->
     {#if oneByOneSummary}
-      <div class="mb-4 rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-text-muted dark:border-white/10 dark:bg-white/[0.03]">
+      <div class="mb-4 rounded-lg border border-black/10 bg-black/2 px-3 py-2 text-xs text-text-muted dark:border-white/10 dark:bg-white/3">
         <div class="flex flex-wrap items-center gap-3">
           <span>Total: {oneByOneSummary.total}</span>
           <span>Completed: {oneByOneSummary.completed}</span>
@@ -1737,7 +1737,7 @@
 
     <!-- Select All Checkbox -->
     {#if providerConnections.length > 0}
-      <div class="mb-3 flex items-center gap-2 border-b border-black/[0.03] pb-2 dark:border-white/[0.03]">
+      <div class="mb-3 flex items-center gap-2 border-b border-black/3 pb-2 dark:border-white/3">
         <label class="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted hover:text-primary">
           <input
             type="checkbox"
@@ -1771,7 +1771,7 @@
           <button
             type="button"
             onclick={handleAddConnectionClick}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-[8px]"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-lg"
           >
             <span class="material-symbols-outlined text-[18px]">login</span>
             Connect Google Account
@@ -1780,7 +1780,7 @@
           <button
             type="button"
             onclick={handleAddConnectionClick}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-8 px-4 text-xs rounded-[8px]"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-8 px-4 text-xs rounded-lg"
           >
             <span class="material-symbols-outlined text-[18px]">lock</span>
             {oauthButtonLabel}
@@ -1788,7 +1788,7 @@
           <button
             type="button"
             onclick={openAddKeyModal}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-[8px]"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-lg"
           >
             <span class="material-symbols-outlined text-[18px]">key</span>
             {apiKeyButtonLabel}
@@ -1797,7 +1797,7 @@
           <button
             type="button"
             onclick={handleAddConnectionClick}
-            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-[8px]"
+            class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-lg"
           >
             <span class="material-symbols-outlined text-[18px]">add</span>
             Add Connection
@@ -1806,7 +1806,7 @@
         </div>
       </div>
     {:else}
-      <div class="flex min-w-0 flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03] max-h-[500px] overflow-y-auto pr-1">
+      <div class="flex min-w-0 flex-col divide-y divide-black/3 dark:divide-white/3 max-h-125 overflow-y-auto pr-1">
         {#each providerConnections as conn, idx (conn.id)}
           {@const isFirst = idx === 0}
           {@const isLast = idx === providerConnections.length - 1}
@@ -1832,7 +1832,7 @@
 
             <!-- Connection Row Content -->
             <div class="flex-1 min-w-0">
-              <div class="group flex min-w-0 flex-col gap-3 rounded-lg p-2 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between">
+              <div class="group flex min-w-0 flex-col gap-3 rounded-lg p-2 transition-colors hover:bg-black/2 dark:hover:bg-white/2 sm:flex-row sm:items-center sm:justify-between">
                 <!-- Left info -->
                 <div class="flex min-w-0 flex-1 items-start gap-2 sm:items-center sm:gap-3">
                   <!-- Reorder buttons -->
@@ -1933,7 +1933,7 @@
                       {/if}
                       <!-- Last error tooltip -->
                       {#if lastErr && lastErr !== 'Provider test not supported'}
-                        <span class="max-w-full truncate text-xs text-red-500 sm:max-w-[300px]" title={lastErr}>
+                        <span class="max-w-full truncate text-xs text-red-500 sm:max-w-75" title={lastErr}>
                           {lastErr.length > 50 ? lastErr.slice(0, 50) + '...' : lastErr}
                         </span>
                       {/if}
@@ -1945,21 +1945,21 @@
                     {#if lastErr && lastErr !== 'Provider test not supported' && (status?.state === 'failed' || conn.testStatus === 'failed' || conn.testStatus === 'error')}
                       <div class="mt-1.5 flex items-start gap-1.5 text-xs text-red-500 bg-red-500/10 px-2.5 py-1.5 rounded-md border border-red-500/20 max-w-full">
                         <span class="material-symbols-outlined text-sm shrink-0 mt-0.5">error</span>
-                        <span class="break-words font-medium leading-relaxed">{lastErr}</span>
+                        <span class="wrap-break-word font-medium leading-relaxed">{lastErr}</span>
                       </div>
                     {/if}
                     <!-- Proxy detail line: pool/legacy label, masked endpoint, no_proxy -->
                     {#if proxyBadge.hasAnyProxy}
                       <div class="mt-1 flex min-w-0 flex-wrap items-center gap-2">
                         <span
-                          class="max-w-full truncate text-[11px] text-text-muted sm:max-w-[420px]"
+                          class="max-w-full truncate text-[11px] text-text-muted sm:max-w-105"
                           title={proxyBadge.displayText}
                         >
                           {proxyBadge.displayText}
                         </span>
                         {#if proxyBadge.maskedProxyUrl}
                           <code
-                            class="max-w-full truncate rounded bg-black/5 px-1 py-0.5 font-mono text-[10px] text-text-muted dark:bg-white/5 sm:max-w-[260px]"
+                            class="max-w-full truncate rounded bg-black/5 px-1 py-0.5 font-mono text-[10px] text-text-muted dark:bg-white/5 sm:max-w-65"
                           >
                             {proxyBadge.maskedProxyUrl}
                           </code>
@@ -2002,7 +2002,7 @@
                           onclick={() => (activeProxyDropdownId = null)}
                           role="presentation"
                         ></div>
-                        <div class="absolute right-0 top-full z-50 mt-1 max-w-[78vw] min-w-[160px] rounded-lg border border-border bg-bg py-1 shadow-lg">
+                        <div class="absolute right-0 top-full z-50 mt-1 max-w-[78vw] min-w-40 rounded-lg border border-border bg-bg py-1 shadow-lg">
                           <button
                             type="button"
                             onclick={() => assignProxyPool(conn, null)}
@@ -2078,7 +2078,7 @@
         <button
           type="button"
           onclick={handleAddConnectionClick}
-          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-[8px] w-full sm:w-auto"
+          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-lg w-full sm:w-auto"
         >
           <span class="material-symbols-outlined text-[18px]">lock</span>
           {oauthButtonLabel}
@@ -2086,7 +2086,7 @@
         <button
           type="button"
           onclick={openAddKeyModal}
-          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-7 px-3 text-xs rounded-[8px] w-full sm:w-auto"
+          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-7 px-3 text-xs rounded-lg w-full sm:w-auto"
         >
           <span class="material-symbols-outlined text-[18px]">key</span>
           {apiKeyButtonLabel}
@@ -2095,7 +2095,7 @@
         <button
           type="button"
           onclick={handleAddConnectionClick}
-          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-7 px-3 text-xs rounded-[8px] w-full sm:w-auto"
+          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-7 px-3 text-xs rounded-lg w-full sm:w-auto"
         >
           <span class="material-symbols-outlined text-[18px]">add</span>
           Add
@@ -2108,13 +2108,13 @@
 
   <!-- 4. Models Card: compatible nodes use upstream CompatibleModelsSection layout -->
   {#if isCompatibleNode}
-  <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+  <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
     <div class="flex flex-col gap-4">
       <p class="text-sm text-text-muted">
         Add {isAnthropicCompatibleNode ? 'Anthropic' : 'OpenAI'}-compatible models manually or import them from the /models endpoint.
       </p>
       <div class="flex items-end gap-2 flex-wrap">
-        <div class="flex-1 min-w-[240px]">
+        <div class="flex-1 min-w-60">
           <label for="new-compatible-model-input" class="text-xs text-text-muted mb-1 block">Model ID</label>
           <input
             id="new-compatible-model-input"
@@ -2129,7 +2129,7 @@
           type="button"
           onclick={handleAddCompatibleModel}
           disabled={!newCompatibleModel.trim() || isAddingCompatibleModel}
-          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-[8px] disabled:opacity-50 disabled:cursor-not-allowed"
+          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-brand-500 hover:bg-brand-600 text-white shadow-sm h-8 px-4 text-xs rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span class="material-symbols-outlined text-[18px]">add</span>
           {isAddingCompatibleModel ? 'Adding...' : 'Add'}
@@ -2138,7 +2138,7 @@
           type="button"
           onclick={handleImportCompatibleModels}
           disabled={!canImportCompatible || isImportingCompatibleModels}
-          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-8 px-4 text-xs rounded-[8px] disabled:opacity-50 disabled:cursor-not-allowed"
+          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-8 px-4 text-xs rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span class="material-symbols-outlined text-[18px]">download</span>
           {isImportingCompatibleModels ? 'Importing...' : 'Import from /models'}
@@ -2197,7 +2197,7 @@
                 {#if tError}
                   <div class="mt-2 flex items-start gap-1.5 text-xs text-red-500 bg-red-500/10 px-2.5 py-1.5 rounded-md border border-red-500/20">
                     <span class="material-symbols-outlined text-sm shrink-0 mt-0.5">error</span>
-                    <span class="break-words font-medium leading-relaxed">{tError}</span>
+                    <span class="wrap-break-word font-medium leading-relaxed">{tError}</span>
                   </div>
                 {/if}
               </div>
@@ -2216,7 +2216,7 @@
     </div>
   </div>
   {:else}
-  <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+  <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
     <!-- Header -->
     <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-center gap-3">
@@ -2241,7 +2241,7 @@
         <button
           type="button"
           onclick={handleToggleAllModels}
-          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-[8px]"
+          class="inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer active:scale-[0.97] bg-surface-2 hover:bg-surface-3 text-text-main border border-border h-7 px-3 text-xs rounded-lg"
         >
           <span class="material-symbols-outlined text-[18px]">block</span>
           {allDisabled ? 'Enable All' : 'Disable All'}
@@ -2278,7 +2278,7 @@
             <span class="material-symbols-outlined shrink-0 text-base text-text-muted">smart_toy</span>
             <div class="flex min-w-0 flex-1 flex-col gap-1">
               <div class="flex items-center gap-1.5 flex-wrap">
-                <code class="max-w-[72vw] truncate rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px]">
+                <code class="max-w-[72vw] truncate rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-90">
                   {fullModelId}
                 </code>
               </div>
@@ -2305,7 +2305,7 @@
               </span>
             </div>
               {#if modelTestErrors[model.id]}
-                <span class="text-[9px] text-red-500 dark:text-red-400 font-medium pl-1 truncate max-w-[280px]" title={modelTestErrors[model.id]}>
+                <span class="text-[9px] text-red-500 dark:text-red-400 font-medium pl-1 truncate max-w-70" title={modelTestErrors[model.id]}>
                   {modelTestErrors[model.id]}
                 </span>
               {/if}
@@ -2446,7 +2446,7 @@
       onclick={() => (showRiskNoticeModal = false)}
       role="presentation"
     ></div>
-    <div class="relative w-full bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] fade-in max-w-md p-6">
+    <div class="relative w-full bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) fade-in max-w-md p-6">
       <div class="flex items-center justify-between pb-3 border-b border-border-subtle mb-4">
         <h2 class="text-lg font-semibold text-text-main">Risk Notice</h2>
         <button
@@ -2464,14 +2464,14 @@
         <button
           type="button"
           onclick={() => (showRiskNoticeModal = false)}
-          class="px-3 py-1.5 text-xs font-semibold rounded-[8px] bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
+          class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
         >
           Cancel
         </button>
         <button
           type="button"
           onclick={confirmRiskAndProceed}
-          class="px-3 py-1.5 text-xs font-semibold rounded-[8px] bg-red-600 hover:bg-red-700 text-white shadow-sm cursor-pointer"
+          class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white shadow-sm cursor-pointer"
         >
           I Understand, Continue
         </button>
@@ -2488,7 +2488,7 @@
         onclick={() => { showOAuthModal = false }}
         role="presentation"
       ></div>
-    <div class="relative w-full bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] fade-in max-w-lg p-6">
+    <div class="relative w-full bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) fade-in max-w-lg p-6">
       <div class="flex items-center justify-between pb-3 border-b border-border-subtle mb-4">
         <h2 class="text-lg font-semibold text-text-main">Connect {providerName}</h2>
         <button
@@ -2584,7 +2584,7 @@
               submitManualCallback()
             }}
             disabled={isConnecting}
-            class="flex-1 py-1.5 text-xs font-semibold rounded-[8px] bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:opacity-50 cursor-pointer"
+            class="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:opacity-50 cursor-pointer"
           >
             {isConnecting ? 'Checking…' : 'Connect'}
           </button>
@@ -2593,7 +2593,7 @@
             onclick={() => {
               showOAuthModal = false
             }}
-            class="flex-1 py-1.5 text-xs font-semibold rounded-[8px] bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
+            class="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
           >
             Cancel
           </button>
@@ -2611,7 +2611,7 @@
       onclick={() => (showApplyProxyModal = false)}
       role="presentation"
     ></div>
-    <div class="relative w-full bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] fade-in max-w-lg p-6">
+    <div class="relative w-full bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) fade-in max-w-lg p-6">
       <div class="flex items-center justify-between pb-3 border-b border-border-subtle mb-4">
         <h2 class="text-lg font-semibold text-text-main">
           Apply Proxy ({providerConnections.length} connections)
@@ -2681,7 +2681,7 @@
         <button
           type="button"
           onclick={() => (showApplyProxyModal = false)}
-          class="px-3 py-1.5 text-xs font-semibold rounded-[8px] bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
+          class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
         >
           Cancel
         </button>
@@ -2698,7 +2698,7 @@
       onclick={() => (editingConnection = null)}
       role="presentation"
     ></div>
-    <div class="relative w-full bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] fade-in max-w-md p-6">
+    <div class="relative w-full bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) fade-in max-w-md p-6">
       <div class="flex items-center justify-between pb-3 border-b border-border-subtle mb-4">
         <h2 class="text-lg font-semibold text-text-main">Edit Connection</h2>
         <button
@@ -2749,7 +2749,7 @@
             type="button"
             onclick={testEditingConnection}
             disabled={isTestingEdit}
-            class="px-3 py-1.5 text-xs font-semibold rounded-[8px] bg-surface-2 hover:bg-surface-3 text-text-main border border-border flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-2 hover:bg-surface-3 text-text-main border border-border flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             {#if isTestingEdit}
               <span class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
@@ -2761,7 +2761,7 @@
             <button
               type="button"
               onclick={() => (editingConnection = null)}
-              class="px-3 py-1.5 text-xs font-semibold rounded-[8px] bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
+              class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-2 hover:bg-surface-3 text-text-main border border-border cursor-pointer"
             >
               Cancel
             </button>
@@ -2769,7 +2769,7 @@
               type="button"
               onclick={saveEditingConnection}
               disabled={isSavingEdit}
-              class="px-3 py-1.5 text-xs font-semibold rounded-[8px] bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:opacity-50 cursor-pointer"
+              class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:opacity-50 cursor-pointer"
             >
               Save
             </button>

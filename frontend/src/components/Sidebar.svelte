@@ -83,7 +83,7 @@
       class="flex items-center gap-3 cursor-pointer group"
     >
       <div
-        class="flex items-center justify-center size-9 rounded-[10px] bg-linear-to-br from-brand-500 to-brand-700 shadow-[var(--shadow-warm)] shrink-0 group-hover:scale-105 transition-transform text-white"
+        class="flex items-center justify-center size-9 rounded-brand bg-linear-to-br from-brand-500 to-brand-700 shadow-(--shadow-warm) shrink-0 group-hover:scale-105 transition-transform text-white"
       >
         <span class="material-symbols-outlined text-[20px]">hub</span>
       </div>

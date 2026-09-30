@@ -1,35 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import {
-    AlertCircle,
     Check,
-    Code2,
     Copy,
     ExternalLink,
-    FolderKanban,
-    HelpCircle,
     Key,
-    Layers,
-    Loader2,
     RefreshCw,
     Search,
-    Shield,
     Terminal,
-    Wrench,
-    X,
-    Zap
+    X
   } from 'lucide-svelte'
-  import Card from '../lib/ui/Card.svelte'
   import { api, type APIKey } from '../api/client'
 
   interface Props {
     apiKeys?: APIKey[]
-    onRefresh?: () => void
   }
 
   let {
     apiKeys = [],
-    onRefresh
   }: Props = $props()
 
   let statuses = $state<Record<string, { installed?: boolean; version?: string | null; has9Router?: boolean } | null>>({})
@@ -37,6 +25,7 @@
   let searchQuery = $state('')
   let activeCategory = $state<'all' | 'cli' | 'ide'>('all')
   let copiedSnippetId = $state<string | null>(null)
+  let selectedTool = $state<ToolItem | null>(null)
   // SSR fallback uses the Go default port 20130; live origin wins on mount.
   let localOrigin = $state(typeof window !== 'undefined' ? window.location.origin : 'http://localhost:20130')
   onMount(() => {
@@ -64,7 +53,7 @@
     image?: string
     icon?: string
     configType: 'env' | 'settings' | 'guide'
-    envVars?: Record<string, string>
+    envVars?: Record<string, string | undefined>
     instructions?: string[]
     defaultKey?: string
   }

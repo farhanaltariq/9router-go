@@ -661,7 +661,7 @@
   {#if provider.noAuth}
     <NoAuthProxyCard providerId={provider.id} />
   {:else}
-    <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+    <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <h2 class="text-lg font-semibold text-text-main">Connections</h2>
         <div class="flex flex-wrap items-center gap-2">
@@ -777,7 +777,7 @@
 
   <!-- 4. Models Card (for kinds that have models) -->
   {#if kind !== 'tts' && kind !== 'webSearch' && kind !== 'webFetch'}
-    <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+    <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-text-main">Models — {kind.toUpperCase()}</h2>
       </div>
@@ -820,7 +820,7 @@
 
   <!-- 5. Config Card -->
   {#if configRows.length > 0 || provider.notice?.text}
-    <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+    <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-lg font-semibold text-text-main">{kindTitle} Config</h2>
         {#if provider.notice?.apiKeyUrl || provider.website}
@@ -871,7 +871,7 @@
   {:else if kind === 'stt'}
     <SttExampleCard providerId={provider.id} {apiKeys} {connections} />
   {:else}
-    <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+    <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
     <h2 class="text-lg font-semibold text-text-main mb-4">Example</h2>
     <div class="flex flex-col gap-2.5">
       <!-- Model selector (if media models exist) -->
@@ -1205,7 +1205,7 @@
       onclick={() => (showAddConnModal = false)}
       role="presentation"
     ></div>
-    <div class="relative w-full max-w-md bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] p-6 z-10 flex flex-col gap-4">
+    <div class="relative w-full max-w-md bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) p-6 z-10 flex flex-col gap-4">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-text-main">Add {provider.name} Connection</h3>
         <button
@@ -1268,7 +1268,7 @@
       onclick={() => (editingConn = null)}
       role="presentation"
     ></div>
-    <div class="relative w-full max-w-md bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] p-6 z-10 flex flex-col gap-4">
+    <div class="relative w-full max-w-md bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) p-6 z-10 flex flex-col gap-4">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-text-main">Edit Connection</h3>
         <button

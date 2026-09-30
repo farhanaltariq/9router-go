@@ -1,30 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import {
-    Activity,
-    Check,
-    Computer,
-    Download,
-    Eye,
-    EyeOff,
-    FileText,
-    Globe,
-    Key,
-    Lock,
-    LogOut,
-    Moon,
-    Power,
-    RefreshCw,
-    RotateCw,
-    Route,
-    Save,
-    Shield,
-    Sliders,
-    Sun,
-    Tv,
-    Upload,
-    Wifi
-  } from 'lucide-svelte'
   import Card from '../lib/ui/Card.svelte'
   import Toggle from '../lib/ui/Toggle.svelte'
   import Modal from '../lib/ui/Modal.svelte'
@@ -79,7 +54,6 @@
 
   // Security / Password State
   let requireLogin = $state(false)
-  let sessionTimeout = $state('24h')
   let currentPassword = $state('')
   let newPassword = $state('')
   let confirmNewPassword = $state('')
@@ -99,7 +73,7 @@
     if (settings) {
       requireLogin = !!settings.requireLogin
       enableObservability = !!settings.enableObservability
-      if (typeof settings.sessionTimeout === 'string') sessionTimeout = settings.sessionTimeout
+      if (typeof settings.sessionTimeout === 'string') {}
       if (typeof settings.fallbackStrategy === 'string') fallbackStrategy = settings.fallbackStrategy
       if (typeof settings.stickyRoundRobinLimit === 'number') stickyRoundRobinLimit = settings.stickyRoundRobinLimit
       if (typeof settings.comboStrategy === 'string') comboStrategy = settings.comboStrategy

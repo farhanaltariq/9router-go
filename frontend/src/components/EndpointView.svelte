@@ -413,7 +413,7 @@
   }
 
   async function handleToggleKey(key: APIKey, nextActive: boolean) {
-    if (!nextActive && (key.isActive === 1 || key.isActive === true)) {
+    if (!nextActive && key.isActive === 1) {
       confirmModal = {
         title: 'Pause API Key',
         message: `Pause API key "${key.name || 'API Key'}"? This key will stop working immediately but can be resumed later.`,
@@ -431,7 +431,7 @@
 
   async function executeToggleKey(id: string, active: boolean) {
     try {
-      await api.toggleApiKey(id, active)
+      await api.toggleApiKey(id)
       localKeys = localKeys.map((k) => (k.id === id ? { ...k, isActive: active ? 1 : 0 } : k))
       onRefresh?.()
     } catch (err) {
@@ -484,7 +484,7 @@
     <div class="flex flex-col gap-3">
       <!-- Local Endpoint Field -->
       <div class="flex items-center gap-2">
-        <span class="text-xs font-mono px-2 py-1 rounded shrink-0 min-w-[90px] text-center bg-surface-2 text-text-muted font-semibold border border-border">
+        <span class="text-xs font-mono px-2 py-1 rounded shrink-0 min-w-22.5 text-center bg-surface-2 text-text-muted font-semibold border border-border">
           Local
         </span>
         <input
@@ -510,7 +510,7 @@
       <!-- Tunnel (Cloudflare Quick Tunnel) -->
       <div class="flex items-center gap-2">
         <span
-          class="text-xs font-mono px-2 py-1 rounded shrink-0 min-w-[90px] text-center font-semibold border transition-colors {tunnelRunning && tunnelUrl
+          class="text-xs font-mono px-2 py-1 rounded shrink-0 min-w-22.5 text-center font-semibold border transition-colors {tunnelRunning && tunnelUrl
             ? 'bg-brand-500/15 text-brand-500 border-brand-500/30'
             : 'bg-surface-2 text-text-muted border-border'}"
         >
@@ -609,7 +609,7 @@
       <!-- Tailscale (Serve / Funnel) -->
       <div class="flex items-center gap-2">
         <span
-          class="text-xs font-mono px-2 py-1 rounded shrink-0 min-w-[90px] text-center font-semibold border transition-colors {tailscaleRunning && tailscaleUrl
+          class="text-xs font-mono px-2 py-1 rounded shrink-0 min-w-22.5 text-center font-semibold border transition-colors {tailscaleRunning && tailscaleUrl
             ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
             : 'bg-surface-2 text-text-muted border-border'}"
         >
@@ -687,7 +687,7 @@
           <button
             type="button"
             onclick={handleTailscaleClick}
-            class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-semibold text-xs transition cursor-pointer shadow-sm"
+            class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-linear-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-semibold text-xs transition cursor-pointer shadow-sm"
           >
             <Shield class="w-3.5 h-3.5" />
             <span>Enable</span>
@@ -705,7 +705,7 @@
                 handleTailscaleClick()
               }
             }}
-            class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-semibold text-xs transition cursor-pointer shadow-sm"
+            class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-linear-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-semibold text-xs transition cursor-pointer shadow-sm"
           >
             <Shield class="w-3.5 h-3.5" />
             <span>Enable</span>
@@ -847,7 +847,7 @@
       <div class="flex flex-col divide-y divide-border/40">
         {#each localKeys as key (key.id)}
           {@const isShown = shownKeyIds.has(key.id)}
-          {@const isActive = key.isActive === 1 || key.isActive === true}
+          {@const isActive = key.isActive === 1}
           <div class="group flex items-center justify-between py-3.5 transition {isActive ? '' : 'opacity-60'}">
             <div class="flex-1 min-w-0 pr-4">
               <p class="text-sm font-semibold text-text-main">{key.name || 'Default Key'}</p>

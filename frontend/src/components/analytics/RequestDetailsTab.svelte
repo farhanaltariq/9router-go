@@ -109,7 +109,7 @@
                   <Badge variant="neutral" size="sm">{formatProviderName(item.provider)}</Badge>
                 </div>
               </td>
-              <td class="py-3 px-4 font-bold text-text-main max-w-[140px] truncate">
+              <td class="py-3 px-4 font-bold text-text-main max-w-35 truncate">
                 <div class="flex items-center gap-1.5">
                   {#if item.provider}
                     <img

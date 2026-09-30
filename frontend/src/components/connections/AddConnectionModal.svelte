@@ -45,10 +45,10 @@
   // Field styling mirrors upstream shared Input/Select (bg-surface-2, rounded 10px).
   const labelCls = 'block text-sm font-medium text-text-main mb-1.5'
   const inputCls =
-    'w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent placeholder:text-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 transition-all duration-150 ease-out'
+    'w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-brand border border-transparent placeholder:text-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 transition-all duration-150 ease-out'
   const selectWrapCls = 'relative'
   const selectCls =
-    'w-full py-2.5 px-3 pr-10 text-sm text-text-main bg-surface-2 border border-transparent rounded-[10px] appearance-none focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 transition-all duration-150'
+    'w-full py-2.5 px-3 pr-10 text-sm text-text-main bg-surface-2 border border-transparent rounded-brand appearance-none focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 transition-all duration-150'
 
   // Provider-specific branches (upstream AddApiKeyModal).
   let catalogItem = $derived(PROVIDER_CATALOG.find((p) => p.id === providerId))
@@ -58,6 +58,7 @@
   let isCookie = $derived(providerAuthType === 'cookie' || catalogItem?.category === 'webCookie')
   let isOllamaLocal = $derived(providerId === 'ollama-local')
   let isCloudflareAi = $derived(providerId === 'cloudflare-ai')
+  let isXaiApiKey = $derived(providerId === 'xai' && catalogItem?.authType === 'apikey')
   let providerRegions = $derived(catalogItem?.regions || null)
 
   let credentialLabel = $derived(
@@ -255,7 +256,7 @@
       onclick={onClose}
       role="presentation"
     ></div>
-    <div class="relative w-full bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] fade-in max-w-md">
+    <div class="relative w-full bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) fade-in max-w-md">
       <div class="flex items-center justify-between p-2 border-b border-border-subtle">
         <div class="flex items-center">
           <div class="hidden md:flex items-center gap-2 mr-4 ml-2">
@@ -279,7 +280,7 @@
           type="button"
           onclick={onClose}
           aria-label="Close"
-          class="md:hidden p-1.5 rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors cursor-pointer"
+          class="md:hidden p-1.5 rounded-brand text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors cursor-pointer"
         >
           <span class="material-symbols-outlined text-[20px]">close</span>
         </button>
@@ -317,7 +318,7 @@
               {/if}
             </p>
             <textarea
-              class="w-full rounded border border-accent/30 bg-sidebar p-2 text-sm font-mono resize-y min-h-[140px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary"
+              class="w-full rounded border border-accent/30 bg-sidebar p-2 text-sm font-mono resize-y min-h-35 text-text-main focus:outline-none focus:ring-1 focus:ring-primary"
               placeholder={bulkPlaceholder}
               bind:value={bulkText}
             ></textarea>
@@ -402,11 +403,11 @@
                   {validation === 'success' ? 'Valid' : 'Invalid'}
                 </span>
                 {#if validationNote}
-                  <span class="text-xs {validation === 'success' ? 'text-text-muted' : 'text-red-500'} break-words">{validationNote}</span>
+                  <span class="text-xs {validation === 'success' ? 'text-text-muted' : 'text-red-500'} wrap-break-word">{validationNote}</span>
                 {/if}
               </div>
             {:else if validationNote}
-              <p class="text-xs text-text-muted break-words -mt-2">{validationNote}</p>
+              <p class="text-xs text-text-muted wrap-break-word -mt-2">{validationNote}</p>
             {/if}
             {#if isXaiApiKey}
               <p class="text-xs text-text-muted">
@@ -489,7 +490,7 @@
             {/if}
 
             {#if error}
-              <p class="text-xs text-red-500 break-words">{error}</p>
+              <p class="text-xs text-red-500 wrap-break-word">{error}</p>
             {/if}
 
             {#if isCompatible}

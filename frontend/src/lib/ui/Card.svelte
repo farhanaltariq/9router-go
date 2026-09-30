@@ -34,17 +34,17 @@
 </script>
 
 <div
-  class="bg-surface border border-border-subtle rounded-[14px] {elev
-    ? 'shadow-[var(--shadow-elev)]'
-    : 'shadow-[var(--shadow-soft)]'} {hover
-    ? 'hover:shadow-[var(--shadow-warm)] hover:border-brand-500/30 transition-all cursor-pointer'
+  class="bg-surface border border-border-subtle rounded-brand-lg {elev
+    ? 'shadow-(--shadow-elev)'
+    : 'shadow-(--shadow-soft)'} {hover
+    ? 'hover:shadow-(--shadow-warm) hover:border-brand-500/30 transition-all cursor-pointer'
     : ''} {paddings[padding]} {klass}"
 >
   {#if title || action}
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
         {#if icon}
-          <div class="p-2 rounded-[10px] bg-bg text-text-muted">
+          <div class="p-2 rounded-brand bg-bg text-text-muted">
             {#if typeof icon === 'function'}
               {@render icon()}
             {:else}

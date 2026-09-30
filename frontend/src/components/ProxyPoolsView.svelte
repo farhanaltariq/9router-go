@@ -542,8 +542,8 @@
 
 {#if loading}
   <div class="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:gap-6 sm:px-0">
-    <div class="h-20 rounded-[14px] bg-surface border border-border-subtle animate-pulse"></div>
-    <div class="h-64 rounded-[14px] bg-surface border border-border-subtle animate-pulse"></div>
+    <div class="h-20 rounded-brand-lg bg-surface border border-border-subtle animate-pulse"></div>
+    <div class="h-64 rounded-brand-lg bg-surface border border-border-subtle animate-pulse"></div>
   </div>
 {:else}
   <div class="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:gap-6 sm:px-0">
@@ -806,7 +806,7 @@
           <textarea
             bind:value={batchImportText}
             placeholder={'http://user:pass@127.0.0.1:7897\n127.0.0.1:7897:user:pass'}
-            class="w-full min-h-[180px] py-2 px-3 text-sm text-text-main bg-surface-2 border border-transparent rounded-[10px] focus:ring-1 focus:ring-primary/30 focus:border-primary/50 focus:outline-none transition-all font-mono"
+            class="w-full min-h-[180px] py-2 px-3 text-sm text-text-main bg-surface-2 border border-transparent rounded-brand focus:ring-1 focus:ring-primary/30 focus:border-primary/50 focus:outline-none transition-all font-mono"
           ></textarea>
           <p class="text-xs text-text-muted mt-1">
             Supported formats: protocol://user:pass@host:port, host:port:user:pass

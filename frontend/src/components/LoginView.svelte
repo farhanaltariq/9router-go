@@ -137,7 +137,7 @@
       </div>
     {:else}
       <div class="text-center mb-8 flex flex-col items-center">
-        <div class="size-14 rounded-2xl bg-surface border border-border-subtle shadow-[var(--shadow-warm)] flex items-center justify-center p-2.5 mb-4">
+        <div class="size-14 rounded-2xl bg-surface border border-border-subtle shadow-(--shadow-warm) flex items-center justify-center p-2.5 mb-4">
           <img src="/favicon.svg" alt="9router-go" class="w-full h-full object-contain" />
         </div>
         <h1 class="text-3xl font-bold text-primary mb-2">9router-go</h1>
@@ -146,7 +146,7 @@
         </p>
       </div>
 
-      <div class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-6">
+      <div class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-6">
         {#if mustChange}
           <form onsubmit={handleSetNewPassword} class="flex flex-col gap-4">
             <p class="text-sm text-amber-600 dark:text-amber-400 text-center">
@@ -160,8 +160,7 @@
                 placeholder="Enter new password"
                 bind:value={newPassword}
                 required
-                autofocus
-                class="w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-colors"
+                class="w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-brand border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-colors"
               />
               {#if errorMessage}
                 <p class="text-xs text-red-500">{errorMessage}</p>
@@ -170,7 +169,7 @@
             <button
               type="submit"
               disabled={isLoading || !newPassword}
-              class="w-full h-9 px-4 text-sm rounded-[10px] font-medium bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:bg-surface-3 disabled:text-text-muted disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              class="w-full h-9 px-4 text-sm rounded-brand font-medium bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:bg-surface-3 disabled:text-text-muted disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               {#if isLoading}
                 <span class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></span>
@@ -191,8 +190,7 @@
                   placeholder="Enter password"
                   bind:value={password}
                   required
-                  autofocus
-                  class="w-full py-2.5 px-3 pr-10 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-colors"
+                  class="w-full py-2.5 px-3 pr-10 text-sm text-text-main bg-surface-2 rounded-brand border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-colors"
                 />
                 <button
                   type="button"
@@ -221,7 +219,7 @@
             <button
               type="submit"
               disabled={isLoading || !password || retryAfter > 0}
-              class="w-full h-9 px-4 text-sm rounded-[10px] font-medium bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:bg-surface-3 disabled:text-text-muted disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              class="w-full h-9 px-4 text-sm rounded-brand font-medium bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:bg-surface-3 disabled:text-text-muted disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               {#if isLoading}
                 <span class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></span>

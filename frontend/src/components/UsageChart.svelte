@@ -147,7 +147,7 @@
 
 <Card
   padding="none"
-  class="flex min-w-0 flex-col overflow-hidden bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] h-full {klass}"
+  class="flex min-w-0 flex-col overflow-hidden bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) h-full {klass}"
   style={style}
 >
   <div class="px-4 py-3 border-b border-border-subtle flex items-center justify-between shrink-0">
@@ -179,12 +179,12 @@
 
   <div class="p-4 flex-1 flex flex-col justify-between min-h-0 relative">
     {#if loading}
-      <div class="flex-1 min-h-[300px] flex items-center justify-center text-text-muted text-sm gap-2">
+      <div class="flex-1 min-h-75 flex items-center justify-center text-text-muted text-sm gap-2">
         <span class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
         <span>Loading chart...</span>
       </div>
     {:else if !hasData}
-      <div class="flex-1 min-h-[300px] flex flex-col items-center justify-center text-text-muted text-sm gap-1.5">
+      <div class="flex-1 min-h-75 flex flex-col items-center justify-center text-text-muted text-sm gap-1.5">
         <span class="material-symbols-outlined text-[28px] opacity-40">query_stats</span>
         <span>No usage data recorded for this period</span>
       </div>
@@ -196,7 +196,7 @@
         role="region"
         aria-label="Usage chart"
       >
-        <svg viewBox="0 0 {width} {height}" class="w-full h-full min-h-[300px] overflow-visible">
+        <svg viewBox="0 0 {width} {height}" class="w-full h-full min-h-75 overflow-visible">
           <defs>
             <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
               <stop

@@ -11,6 +11,7 @@
 
   interface Props {
     kind: MediaKind
+    nodeType?: string
     connections?: ProviderConnection[]
     apiKeys?: APIKey[]
     settings?: Settings
@@ -150,7 +151,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {#each kindCombos as combo (combo.id)}
             <a href={`/dashboard/media-providers/combo/${combo.id}`}>
-              <Card padding="xs" class="h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer">
+              <Card padding="xs" class="h-full hover:bg-black/1 dark:hover:bg-white/1 transition-colors cursor-pointer">
                 <div class="flex items-center gap-3">
                   <div class="size-8 rounded-lg flex items-center justify-center shrink-0 bg-primary/10 text-primary">
                     <span class="material-symbols-outlined text-lg">alt_route</span>
@@ -212,9 +213,9 @@
     {#if isEmbedding && showCustomModal}
       <AddCompatibleNodeModal
         isOpen={showCustomModal}
-        nodeType="custom-embedding"
+        type="custom-embedding"
         onClose={() => (showCustomModal = false)}
-        onCreated={handleCreateCustomNode}
+        onSubmit={handleCreateCustomNode}
       />
     {/if}
   </div>

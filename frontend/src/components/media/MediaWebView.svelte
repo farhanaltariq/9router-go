@@ -133,7 +133,7 @@
             onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openManageDialog(combo)}
             class="group cursor-pointer text-left focus:outline-none"
           >
-            <div class="p-2.5 rounded-xl border border-border bg-surface hover:border-brand-500/40 hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-all flex min-w-0 items-center gap-3">
+            <div class="p-2.5 rounded-xl border border-border bg-surface hover:border-brand-500/40 hover:bg-black/1 dark:hover:bg-white/1 transition-all flex min-w-0 items-center gap-3">
               <div class="size-6 rounded-md bg-brand-500/10 flex items-center justify-center shrink-0">
                 <Layers class="w-3.5 h-3.5 text-brand-500" />
               </div>
@@ -172,7 +172,7 @@
           }}
           class="group block text-left focus:outline-none"
         >
-          <div class="p-3 rounded-xl border border-border bg-surface hover:border-brand-500/40 hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-all {stats.allDisabled ? 'opacity-50' : ''}">
+          <div class="p-3 rounded-xl border border-border bg-surface hover:border-brand-500/40 hover:bg-black/1 dark:hover:bg-white/1 transition-all {stats.allDisabled ? 'opacity-50' : ''}">
             <div class="flex min-w-0 items-center gap-3">
               <div class="size-8 rounded-lg flex items-center justify-center shrink-0 border border-border/40 overflow-hidden" style="background-color: {p.color && p.color.length > 7 ? p.color : (p.color ?? '#888') + '15'}">
                 <img src="/providers/{p.id}.png" alt={p.name} class="size-5 object-contain rounded" onerror={(e) => { const img = e.currentTarget as HTMLImageElement; if (!img.dataset.fallback) { img.dataset.fallback = '1'; img.src = '/providers/oai-cc.png' } else { (e.currentTarget as HTMLElement).style.display = 'none' } }} />

@@ -216,7 +216,7 @@
   bind:this={containerEl}
   role="region"
   aria-label="Provider topology map"
-  class="h-[320px] w-full min-w-0 rounded-lg border border-border bg-bg-subtle/30 sm:h-[480px] relative overflow-hidden select-none cursor-grab active:cursor-grabbing"
+  class="h-80 w-full min-w-0 rounded-lg border border-border bg-bg-subtle/30 sm:h-120 relative overflow-hidden select-none cursor-grab active:cursor-grabbing"
   onpointerdown={handlePointerDown}
   onpointermove={handlePointerMove}
   onpointerup={handlePointerUp}
@@ -446,7 +446,7 @@
 
     <!-- HTML Router Node (Center 0, 0) -->
     <div
-      class="absolute z-10 flex items-center justify-center px-5 py-3 rounded-xl border-2 min-w-[130px] {activeCount > 0 ? 'topology-router-core border-yellow-300 bg-gradient-to-br from-primary/30 via-yellow-400/20 to-cyan-400/25' : 'border-primary bg-primary/5 shadow-md'} pointer-events-auto"
+      class="absolute z-10 flex items-center justify-center px-5 py-3 rounded-xl border-2 min-w-32.5 {activeCount > 0 ? 'topology-router-core border-yellow-300 bg-linear-to-br from-primary/30 via-yellow-400/20 to-cyan-400/25' : 'border-primary bg-primary/5 shadow-md'} pointer-events-auto"
       style="left: 0px; top: 0px; transform: translate(-50%, -50%);"
     >
       <img
@@ -493,7 +493,7 @@
           {/if}
         </div>
         <span
-          class="text-base font-medium truncate max-w-[200px]"
+          class="text-base font-medium truncate max-w-50"
           style="color: {node.isActive ? node.color : 'var(--color-text)'}"
           title={node.name}
         >

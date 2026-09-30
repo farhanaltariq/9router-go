@@ -23,7 +23,7 @@
 <button
   type="button"
   onclick={toggle}
-  class="w-8 h-8 rounded-[8px] flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-2 transition-colors cursor-pointer"
+  class="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-2 transition-colors cursor-pointer"
   aria-label="Toggle theme"
 >
   {#if theme === 'dark'}

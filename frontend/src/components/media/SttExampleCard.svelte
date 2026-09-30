@@ -340,7 +340,7 @@
     </div>
 
     {#if error}
-      <p class="text-xs text-red-500 break-words mt-1">{error}</p>
+      <p class="text-xs text-red-500 wrap-break-word mt-1">{error}</p>
     {/if}
 
     <!-- Response preview -->

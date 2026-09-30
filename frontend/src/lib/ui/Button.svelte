@@ -45,9 +45,9 @@
   }
 
   const sizes: Record<Size, string> = {
-    sm: 'h-7 px-3 text-xs rounded-[8px]',
-    md: 'h-9 px-4 text-sm rounded-[10px]',
-    lg: 'h-11 px-6 text-sm rounded-[10px]',
+    sm: 'h-7 px-3 text-xs rounded-lg',
+    md: 'h-9 px-4 text-sm rounded-brand',
+    lg: 'h-11 px-6 text-sm rounded-brand',
   }
 </script>
 

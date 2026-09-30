@@ -43,12 +43,12 @@
 >
   <Card
     padding="xs"
-    class="h-full hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors p-3 rounded-xl border {isAllDisabled
+    class="h-full hover:bg-black/2 dark:hover:bg-white/2 transition-colors p-3 rounded-xl border {isAllDisabled
       ? 'border-border bg-surface opacity-50'
       : stats.errorCount > 0
-        ? 'border-red-500/50 bg-red-500/[0.02]'
+        ? 'border-red-500/50 bg-red-500/2'
         : stats.connected > 0 || noAuth
-          ? 'border-emerald-500/40 bg-emerald-500/[0.02]'
+          ? 'border-emerald-500/40 bg-emerald-500/2'
           : 'border-border bg-surface'}"
   >
     <div class="flex min-w-0 items-center justify-between gap-3">

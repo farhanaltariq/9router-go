@@ -28,7 +28,7 @@
           <span class="text-emerald-600 dark:text-emerald-400 font-mono text-[11px]">• {latency}ms</span>
         {/if}
         {#if conn.lastError}
-          <span class="text-red-500 truncate max-w-[150px]">• {conn.lastError}</span>
+          <span class="text-red-500 truncate max-w-37.5">• {conn.lastError}</span>
         {/if}
       </div>
     </div>

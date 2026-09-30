@@ -365,7 +365,7 @@
 
         <!-- Recent Requests Card (Matches exact upstream DOM/CSS) -->
         <div
-          class="bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-soft)] p-4 flex min-w-0 flex-col overflow-hidden"
+          class="bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) p-4 flex min-w-0 flex-col overflow-hidden"
           style="height: 480px;"
         >
           <div class="px-1 py-2 border-b border-border shrink-0 flex items-center justify-between">

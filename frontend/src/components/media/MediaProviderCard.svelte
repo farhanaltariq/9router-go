@@ -76,7 +76,7 @@
 >
   <Card
     padding="xs"
-    class="h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer {allDisabled ? 'opacity-50' : ''}"
+    class="h-full hover:bg-black/1 dark:hover:bg-white/1 transition-colors cursor-pointer {allDisabled ? 'opacity-50' : ''}"
   >
     <div class="flex min-w-0 items-center justify-between gap-3">
       <div class="flex min-w-0 items-center gap-3">

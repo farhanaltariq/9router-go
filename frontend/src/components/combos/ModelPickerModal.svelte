@@ -101,7 +101,7 @@
     <div class="absolute inset-0 bg-black/50 backdrop-blur-[2px] fade-in" onclick={onClose} aria-hidden="true"></div>
 
     <div
-      class="relative w-full max-w-md bg-surface border border-border-subtle rounded-[14px] shadow-[var(--shadow-elev)] fade-in overflow-hidden flex flex-col max-h-[85vh] z-10 p-4!"
+      class="relative w-full max-w-md bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-elev) fade-in overflow-hidden flex flex-col max-h-[85vh] z-10 p-4!"
       role="dialog"
       aria-modal="true"
     >
@@ -135,7 +135,7 @@
           type="button"
           onclick={onClose}
           aria-label="Close"
-          class="md:hidden p-1.5 rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors"
+          class="md:hidden p-1.5 rounded-brand text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors"
         >
           <X class="w-4 h-4" />
         </button>

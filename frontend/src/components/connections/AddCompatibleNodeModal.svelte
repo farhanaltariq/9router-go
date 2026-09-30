@@ -152,7 +152,7 @@
         <select
           id="api-type"
           bind:value={formApiType}
-          class="w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 transition-all duration-150 ease-out text-[16px] sm:text-sm"
+          class="w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-brand border border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 transition-all duration-150 ease-out text-[16px] sm:text-sm"
         >
           <option value="chat">Chat Completions</option>
           <option value="responses">Responses API</option>
