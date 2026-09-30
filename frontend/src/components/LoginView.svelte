@@ -16,12 +16,6 @@
   let resetHint = $state('')
   let retryAfter = $state(0)
   let hasPassword = $state<boolean | null>(null)
-  let authMode = $state('password')
-  let ssoType = $state('oidc')
-  let oidcConfigured = $state(false)
-  let oidcLoginLabel = $state('Sign in with OIDC')
-  let samlConfigured = $state(false)
-  let samlLoginLabel = $state('Sign in with SAML SSO')
   let mustChange = $state(false)
 
   // Countdown for rate-limit lockout (upstream retryAfter).
@@ -57,12 +51,6 @@
           return
         }
         hasPassword = !!data.hasPassword
-        authMode = data.authMode || 'password'
-        ssoType = data.ssoType || 'oidc'
-        oidcConfigured = data.oidcConfigured === true
-        oidcLoginLabel = data.oidcLoginLabel || 'Sign in with OIDC'
-        samlConfigured = data.samlConfigured === true
-        samlLoginLabel = data.samlLoginLabel || 'Sign in with SAML SSO'
       })
       .catch(() => {
         clearTimeout(timeoutId)
@@ -136,21 +124,6 @@
       isLoading = false
     }
   }
-
-  function handleOidcLogin() {
-    window.location.href = '/api/auth/oidc/start'
-  }
-
-  function handleSamlLogin() {
-    window.location.href = '/api/auth/saml/start'
-  }
-
-  const isSsoEnabled = $derived(['sso', 'oidc', 'saml', 'both'].includes(authMode))
-  const activeSsoType = $derived(ssoType || (authMode === 'saml' ? 'saml' : 'oidc'))
-  const samlAvailable = $derived(isSsoEnabled && activeSsoType === 'saml' && samlConfigured)
-  const oidcAvailable = $derived(isSsoEnabled && activeSsoType === 'oidc' && oidcConfigured)
-  const ssoAvailable = $derived(samlAvailable || oidcAvailable)
-  const passwordAvailable = $derived(authMode === 'password' || authMode === 'both' || !ssoAvailable)
 </script>
 
 <div class="min-h-screen flex items-center justify-center bg-bg p-4 relative overflow-hidden">
@@ -169,13 +142,7 @@
         </div>
         <h1 class="text-3xl font-bold text-primary mb-2">9router-go</h1>
         <p class="text-text-muted">
-          {#if samlAvailable}
-            Sign in with SAML 2.0 Single Sign-On
-          {:else if oidcAvailable}
-            Sign in with your OIDC provider to access the dashboard
-          {:else}
-            Enter your password to access the dashboard
-          {/if}
+          Enter your password to access the dashboard
         </p>
       </div>
 
@@ -214,109 +181,67 @@
             </button>
           </form>
         {:else}
-          <div class="flex flex-col gap-4">
-            {#if samlAvailable}
-              <button
-                type="button"
-                onclick={handleSamlLogin}
-                class="w-full h-9 px-4 text-sm rounded-[10px] font-medium bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-colors cursor-pointer"
-              >
-                {samlLoginLabel}
-              </button>
-            {/if}
-
-            {#if oidcAvailable}
-              <button
-                type="button"
-                onclick={handleOidcLogin}
-                class="w-full h-9 px-4 text-sm rounded-[10px] font-medium bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-colors cursor-pointer"
-              >
-                {oidcLoginLabel}
-              </button>
-            {/if}
-
-            {#if ssoAvailable && passwordAvailable}
-              <div class="h-px bg-border-subtle"></div>
-            {/if}
-
-            {#if passwordAvailable}
-              <form onsubmit={handleSubmit} class="flex flex-col gap-4">
-                {#if isSsoEnabled && !ssoAvailable}
-                  <p class="text-xs text-amber-600 dark:text-amber-400 text-center">
-                    {activeSsoType === 'saml' ? 'SAML SSO' : 'OIDC'} login is enabled, but configuration is incomplete. Password login is still available for recovery.
-                  </p>
-                {/if}
-
-                {#if authMode === 'both' && ssoAvailable}
-                  <p class="text-xs text-text-muted text-center">
-                    Password and {activeSsoType === 'saml' ? 'SAML SSO' : 'OIDC'} login are both enabled.
-                  </p>
-                {/if}
-
-                <div class="flex flex-col gap-2">
-                  <label for="login-password" class="text-sm font-medium text-text-main">Password</label>
-                  <div class="relative">
-                    <input
-                      id="login-password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter password"
-                      bind:value={password}
-                      required
-                      autofocus={!oidcAvailable}
-                      class="w-full py-2.5 px-3 pr-10 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onclick={() => (showPassword = !showPassword)}
-                      class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-muted hover:text-text-main transition-colors cursor-pointer"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      <span class="material-symbols-outlined text-[20px]">
-                        {showPassword ? 'visibility_off' : 'visibility'}
-                      </span>
-                    </button>
-                  </div>
-                  {#if errorMessage}
-                    <p class="text-xs text-red-500">{errorMessage}</p>
-                  {/if}
-                  {#if retryAfter > 0}
-                    <p class="text-xs text-amber-600 dark:text-amber-400">
-                      Locked. Retry in <span class="font-mono">{retryAfter}s</span>.
-                    </p>
-                  {/if}
-                  {#if resetHint}
-                    <p class="text-xs text-text-muted">{resetHint}</p>
-                  {/if}
-                </div>
-
+          <form onsubmit={handleSubmit} class="flex flex-col gap-4">
+            <div class="flex flex-col gap-2">
+              <label for="login-password" class="text-sm font-medium text-text-main">Password</label>
+              <div class="relative">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter password"
+                  bind:value={password}
+                  required
+                  autofocus
+                  class="w-full py-2.5 px-3 pr-10 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-colors"
+                />
                 <button
-                  type="submit"
-                  disabled={isLoading || !password || retryAfter > 0}
-                  class="w-full h-9 px-4 text-sm rounded-[10px] font-medium bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:bg-surface-3 disabled:text-text-muted disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  type="button"
+                  onclick={() => (showPassword = !showPassword)}
+                  class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-muted hover:text-text-main transition-colors cursor-pointer"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {#if isLoading}
-                    <span class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></span>
-                    <span>Logging in...</span>
-                  {:else if retryAfter > 0}
-                    <span>Wait {retryAfter}s</span>
-                  {:else}
-                    <span>Login</span>
-                  {/if}
+                  <span class="material-symbols-outlined text-[20px]">
+                    {showPassword ? 'visibility_off' : 'visibility'}
+                  </span>
                 </button>
-
-                <p class="text-xs text-center text-text-muted mt-2">
-                  Default password is <code class="bg-surface-2 px-1.5 py-0.5 rounded text-text-main font-mono">123456</code>
+              </div>
+              {#if errorMessage}
+                <p class="text-xs text-red-500">{errorMessage}</p>
+              {/if}
+              {#if retryAfter > 0}
+                <p class="text-xs text-amber-600 dark:text-amber-400">
+                  Locked. Retry in <span class="font-mono">{retryAfter}s</span>.
                 </p>
-                {#if hasPassword === false}
-                  <p class="text-xs text-center text-amber-600 dark:text-amber-400">
-                    Security risk: no password set. You will be asked to set one when logging in remotely.
-                  </p>
-                {/if}
-              </form>
-            {:else if errorMessage}
-              <p class="text-xs text-red-500">{errorMessage}</p>
+              {/if}
+              {#if resetHint}
+                <p class="text-xs text-text-muted">{resetHint}</p>
+              {/if}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading || !password || retryAfter > 0}
+              class="w-full h-9 px-4 text-sm rounded-[10px] font-medium bg-brand-500 hover:bg-brand-600 text-white shadow-sm disabled:bg-surface-3 disabled:text-text-muted disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {#if isLoading}
+                <span class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></span>
+                <span>Logging in...</span>
+              {:else if retryAfter > 0}
+                <span>Wait {retryAfter}s</span>
+              {:else}
+                <span>Login</span>
+              {/if}
+            </button>
+
+            <p class="text-xs text-center text-text-muted mt-2">
+              Default password is <code class="bg-surface-2 px-1.5 py-0.5 rounded text-text-main font-mono">123456</code>
+            </p>
+            {#if hasPassword === false}
+              <p class="text-xs text-center text-amber-600 dark:text-amber-400">
+                Security risk: no password set. You will be asked to set one when logging in remotely.
+              </p>
             {/if}
-          </div>
+          </form>
         {/if}
       </div>
     {/if}
