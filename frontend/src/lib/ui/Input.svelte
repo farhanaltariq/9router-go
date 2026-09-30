@@ -1,5 +1,6 @@
 <script lang="ts">
   // Port of decolua/9router src/shared/components/Input.js
+  let _inputIdCounter = 0
   let {
     label = '',
     type = 'text',
@@ -13,7 +14,8 @@
     min = '',
     max = '',
     class: klass = '',
-    inputClass = ''
+    inputClass = '',
+    id: inputId
   }: {
     label?: string
     type?: string
@@ -28,12 +30,15 @@
     max?: string
     class?: string
     inputClass?: string
+    id?: string
   } = $props()
+
+  let _generatedId = $derived(inputId ?? `input-${++_inputIdCounter}`)
 </script>
 
 <div class="flex flex-col gap-1.5 {klass}">
   {#if label}
-    <label class="text-sm font-medium text-text-main">
+    <label for={_generatedId} class="text-sm font-medium text-text-main">
       {label}
       {#if required}<span class="text-red-500 ml-1">*</span>{/if}
     </label>
@@ -52,6 +57,7 @@
       {min}
       {max}
       bind:value
+      id={_generatedId}
       class="w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-brand border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 transition-all duration-150 ease-out disabled:opacity-50 disabled:cursor-not-allowed text-[16px] sm:text-sm {icon ? 'pl-10' : ''} {error ? 'ring-1 ring-red-500 focus:ring-2 focus:ring-red-500/40 border-red-500/40' : ''} {inputClass}"
     />
   </div>

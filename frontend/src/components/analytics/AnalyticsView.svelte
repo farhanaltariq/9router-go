@@ -1,7 +1,6 @@
 <script lang="ts">
   import { api, getAuthHeaders, type ProviderConnection, type ProviderNode } from '../../api/client'
   import { PROVIDER_CATALOG } from '../../lib/providers'
-  import Card from '../../lib/ui/Card.svelte'
   import {
     fmt,
     timeAgo,
@@ -163,7 +162,7 @@
                   const isNewRequest =
                     newTop.timestamp !== prevTop.timestamp ||
                     newTop.model !== prevTop.model ||
-                    newTop.tokens !== prevTop.tokens
+                    newTop.promptTokens !== prevTop.promptTokens
                   if (isNewRequest && newTop.provider) {
                     lastProvider = newTop.provider
                     triggerPulse(newTop.provider)

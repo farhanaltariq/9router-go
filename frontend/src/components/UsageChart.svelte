@@ -14,7 +14,7 @@
     style?: string
   }
 
-  let { period = '7d', class: klass = '', style = '' }: Props = $props()
+  let { period = '7d', class: klass = '' }: Props = $props()
 
   let data = $state<ChartPoint[]>([])
   let loading = $state(true)
@@ -148,7 +148,6 @@
 <Card
   padding="none"
   class="flex min-w-0 flex-col overflow-hidden bg-surface border border-border-subtle rounded-brand-lg shadow-(--shadow-soft) h-full {klass}"
-  style={style}
 >
   <div class="px-4 py-3 border-b border-border-subtle flex items-center justify-between shrink-0">
     <div class="flex items-center gap-2">

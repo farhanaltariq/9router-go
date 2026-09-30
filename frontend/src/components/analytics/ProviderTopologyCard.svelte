@@ -25,7 +25,7 @@
     pulseProvider = '',
     lastProvider = '',
     errorProvider = '',
-    onRefresh
+    _onRefresh
   }: Props = $props()
 
   // Default fallback providers if none connected

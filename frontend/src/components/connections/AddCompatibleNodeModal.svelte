@@ -111,8 +111,7 @@
     }
   }
 
-  function handleSubmit(e?: SubmitEvent) {
-    e?.preventDefault()
+  function handleSubmit() {
     if (!formName.trim() || !formPrefix.trim() || !formBaseUrl.trim() || submitting) return
     submitting = true
     Promise.resolve(onSubmit({

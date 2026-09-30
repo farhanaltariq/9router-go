@@ -1,14 +1,5 @@
 <script lang="ts">
-  import {
-    Check,
-    ExternalLink,
-    Loader2,
-    Plus,
-    Power,
-    Shield,
-    Terminal,
-    Trash2
-  } from 'lucide-svelte'
+  import { Check, Copy, Key, Loader2, Plus, Power, Terminal, Trash2 } from 'lucide-svelte'
   import { api, type APIKey } from '../api/client'
 
   let {

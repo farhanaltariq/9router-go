@@ -707,7 +707,7 @@
           </Button>
         </div>
       {:else}
-        <div class="flex flex-col divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+        <div class="flex flex-col divide-y divide-black/4 dark:divide-white/5">
           {#each proxyPools as pool (pool.id)}
             <div class="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex items-start gap-3 min-w-0 flex-1">
@@ -800,13 +800,14 @@
     >
       <div class="flex flex-col gap-4">
         <div>
-          <label class="text-sm font-medium text-text-main mb-1 block">
+        <label for="batch-import-textarea" class="text-sm font-medium text-text-main mb-1 block">
             Paste Proxy List (One per line)
           </label>
           <textarea
+            id="batch-import-textarea"
             bind:value={batchImportText}
             placeholder={'http://user:pass@127.0.0.1:7897\n127.0.0.1:7897:user:pass'}
-            class="w-full min-h-[180px] py-2 px-3 text-sm text-text-main bg-surface-2 border border-transparent rounded-brand focus:ring-1 focus:ring-primary/30 focus:border-primary/50 focus:outline-none transition-all font-mono"
+            class="w-full min-h-45 py-2 px-3 text-sm text-text-main bg-surface-2 border border-transparent rounded-brand focus:ring-1 focus:ring-primary/30 focus:border-primary/50 focus:outline-none transition-all font-mono"
           ></textarea>
           <p class="text-xs text-text-muted mt-1">
             Supported formats: protocol://user:pass@host:port, host:port:user:pass

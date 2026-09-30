@@ -96,8 +96,9 @@
   </div>
 
   <div class="flex flex-col gap-1.5 mb-4">
-    <label class="text-sm font-medium text-text-main">Proxy Pool</label>
+    <label for="proxy-pool-select" class="text-sm font-medium text-text-main">Proxy Pool</label>
     <select
+      id="proxy-pool-select"
       value={proxyPoolId}
       onchange={(e) => handlePoolChange(e.currentTarget.value)}
       disabled={saving || isRotation}
@@ -114,8 +115,9 @@
   </div>
 
   <div class="flex flex-col gap-2">
-    <label class="text-sm font-medium text-text-main">Rotation Strategy</label>
+    <label for="rotation-strategy-select" class="text-sm font-medium text-text-main">Rotation Strategy</label>
     <select
+      id="rotation-strategy-select"
       value={rotateStrategy}
       onchange={(e) => handleStrategyChange(e.currentTarget.value)}
       disabled={saving}
