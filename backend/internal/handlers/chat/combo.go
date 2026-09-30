@@ -539,10 +539,10 @@ func (h *ChatHandler) handleComboFallback(ctx context.Context, w http.ResponseWr
 
 				var fwdErr error
 				fwdErr = h.tryForwardWithConnection(forwardRequestParams{
-						Ctx: ctx, W: cw, Provider: modelInfo.Provider, Model: modelInfo.Model,
-						ConnectionID: connID, ConnData: connData, Body: upstreamJSON,
-						IsStream: isStream, TranslateResponse: translateResponse, Endpoint: "/v1/chat/completions",
-					})
+					Ctx: ctx, W: cw, Provider: modelInfo.Provider, Model: modelInfo.Model,
+					ConnectionID: connID, ConnData: connData, Body: upstreamJSON,
+					IsStream: isStream, TranslateResponse: translateResponse, Endpoint: "/v1/chat/completions",
+				})
 
 				if fwdErr != nil {
 					if ctx.Err() != nil {
@@ -569,7 +569,7 @@ func (h *ChatHandler) handleComboFallback(ctx context.Context, w http.ResponseWr
 						}
 						continue
 					}
-					lastErr = &upstreamError{StatusCode: http.StatusBadGateway, Body: []byte(fmt.Sprintf(`{"error":{"message":"upstream error: %v","type":"upstream_error","code":502}}`, fwdErr))}
+					lastErr = &upstreamError{StatusCode: http.StatusBadGateway, Body: fmt.Appendf(nil, `{"error":{"message":"upstream error: %v","type":"upstream_error","code":502}}`, fwdErr)}
 					if isKnownNoAuth {
 						break
 					}
@@ -685,7 +685,7 @@ func (h *ChatHandler) handleMessagesComboFallback(ctx context.Context, w http.Re
 
 			var entrySuccess bool
 			// Try up to 10 connections for this model entry
-			for connAttempt := 0; connAttempt < 10; connAttempt++ {
+			for _ = range 10 {
 				var connID string
 				var connData *ConnectionData
 				isKnownNoAuth := false
@@ -758,7 +758,7 @@ func (h *ChatHandler) handleMessagesComboFallback(ctx context.Context, w http.Re
 						}
 						continue
 					}
-					lastErr = &upstreamError{StatusCode: http.StatusBadGateway, Body: []byte(fmt.Sprintf(`{"error":{"message":"upstream error: %v","type":"upstream_error","code":502}}`, fwdErr))}
+					lastErr = &upstreamError{StatusCode: http.StatusBadGateway, Body: fmt.Appendf(nil, `{"error":{"message":"upstream error: %v","type":"upstream_error","code":502}}`, fwdErr)}
 					if isKnownNoAuth {
 						break
 					}

@@ -1,6 +1,7 @@
 package translator
 
 import (
+	"context"
 	json "encoding/json/v2"
 	"strings"
 	"testing"
@@ -319,11 +320,11 @@ func TestFingerprintToolKey(t *testing.T) {
 
 func TestToolNameMapContext(t *testing.T) {
 	nameMap := map[string]string{"bash": "Bash"}
-	ctx := WithToolNameMap(nil, nameMap)
+	ctx := WithToolNameMap(context.TODO(), nameMap)
 	if got := ToolNameMapFromContext(ctx); got["bash"] != "Bash" {
 		t.Errorf("map was not stored on the context: %v", got)
 	}
-	if got := ToolNameMapFromContext(nil); got != nil {
+	if got := ToolNameMapFromContext(context.TODO()); got != nil {
 		t.Errorf("a nil context must yield a nil map, got %v", got)
 	}
 }

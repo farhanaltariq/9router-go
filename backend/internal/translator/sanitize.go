@@ -30,9 +30,7 @@ func sanitizeToolArgs(toolName, argsJSON string) string {
 	origArgsJSON := argsJSON
 
 	name := toolName
-	if strings.HasPrefix(name, "proxy_") {
-		name = strings.TrimPrefix(name, "proxy_")
-	}
+	name = strings.TrimPrefix(name, "proxy_")
 
 	nameLower := strings.ToLower(name)
 	switch {
@@ -60,9 +58,6 @@ func sanitizeToolArgs(toolName, argsJSON string) string {
 				}
 			}
 			if _, ok := args["query"]; !ok {
-				if _, exists := args["query"]; exists {
-					delete(args, "query")
-				}
 				args["query"] = "search"
 				log.Warn("sanitize", "web_search set fallback generic query for missing query", "tool", toolName, "before", origArgsJSON, "after", "search")
 			}

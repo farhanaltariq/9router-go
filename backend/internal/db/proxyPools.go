@@ -168,6 +168,9 @@ func (r *Repo) ListProxyPools() ([]map[string]any, error) {
 		if err := rows.Scan(&id, &isActiveInt, &testStatus, &dataStr, &createdAt, &updatedAt); err != nil {
 			continue
 		}
+		if rows.Err() != nil {
+			break
+		}
 		var poolData map[string]any
 		if err := json.Unmarshal([]byte(dataStr), &poolData); err != nil {
 			poolData = make(map[string]any)

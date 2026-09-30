@@ -571,7 +571,7 @@ func handleCodexStream(w http.ResponseWriter, req *Request, upstream io.Reader) 
 
 		// Finish stream
 		if !state.Completed {
-			finishChunk := []byte(fmt.Sprintf("data: %s\n\n", fmt.Sprintf(`{"id":"%s","object":"chat.completion.chunk","created":%d,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`, responseID, created)))
+			finishChunk := fmt.Appendf(nil, "data: %s\n\n", fmt.Sprintf(`{"id":"%s","object":"chat.completion.chunk","created":%d,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`, responseID, created))
 			if translated, terr := translator.TranslateOpenAIToClaudeStreamSession(sessionKey, finishChunk); terr == nil && translated != nil {
 				hw.Write(translated)
 			}
@@ -629,7 +629,7 @@ func handleCodexStream(w http.ResponseWriter, req *Request, upstream io.Reader) 
 			return codexUpstreamError(state.UpstreamErr)
 		}
 		// Fallback empty response
-		converted = []byte(fmt.Sprintf(`{"id":"%s","object":"chat.completion","created":%d,"choices":[{"index":0,"message":{"role":"assistant","content":""},"finish_reason":"stop"}]}`, responseID, created))
+		converted = fmt.Appendf(nil, `{"id":"%s","object":"chat.completion","created":%d,"choices":[{"index":0,"message":{"role":"assistant","content":""},"finish_reason":"stop"}]}`, responseID, created)
 	}
 	return jsonResponse(req.Ctx, w, bytes.NewReader(converted), req.TranslateResp, req.ResponseBuf)
 }
@@ -677,7 +677,7 @@ func writeSSEFinish(w http.ResponseWriter, flusher http.Flusher, req *Request, s
 			}},
 		}
 		if b, err := json.Marshal(chunk); err == nil {
-			if _, werr := w.Write([]byte(fmt.Sprintf("data: %s\n\n", string(b)))); werr != nil {
+			if _, werr := w.Write(fmt.Appendf(nil, "data: %s\n\n", string(b))); werr != nil {
 				return werr
 			}
 		}
@@ -706,7 +706,7 @@ func writeSSE(w io.Writer, data any) error {
 	if err != nil {
 		return fmt.Errorf("writeSSE marshal: %w", err)
 	}
-	if _, err := w.Write([]byte(fmt.Sprintf("data: %s\n\n", string(b)))); err != nil {
+	if _, err := w.Write(fmt.Appendf(nil, "data: %s\n\n", string(b))); err != nil {
 		return err
 	}
 	return nil
@@ -989,7 +989,7 @@ func handleCommandcodeStream(w http.ResponseWriter, req *Request, upstream io.Re
 			code, msg := ParseCommandCodeError(event)
 			return &proxy.UpstreamError{
 				StatusCode: code,
-				Body:       []byte(fmt.Sprintf(`{"error":{"message":"%s","code":%d}}`, msg, code)),
+				Body:       fmt.Appendf(nil, `{"error":{"message":"%s","code":%d}}`, msg, code),
 			}
 		}
 
@@ -1008,7 +1008,7 @@ func handleCommandcodeStream(w http.ResponseWriter, req *Request, upstream io.Re
 
 		flusher, _ := w.(http.Flusher)
 		for _, chunk := range chunks {
-			if _, err := w.Write([]byte(fmt.Sprintf("data: %s\n\n", chunk))); err != nil {
+			if _, err := w.Write(fmt.Appendf(nil, "data: %s\n\n", chunk)); err != nil {
 				return err
 			}
 			if flusher != nil {
@@ -1032,7 +1032,7 @@ func handleCommandcodeStream(w http.ResponseWriter, req *Request, upstream io.Re
 			fallbackReason = "tool_calls"
 		}
 		finishChunk := BuildCommandcodeChunk(state, map[string]any{}, fallbackReason)
-		if _, err := w.Write([]byte(fmt.Sprintf("data: %s\n\n", finishChunk))); err != nil {
+		if _, err := w.Write(fmt.Appendf(nil, "data: %s\n\n", finishChunk)); err != nil {
 			return err
 		}
 	}

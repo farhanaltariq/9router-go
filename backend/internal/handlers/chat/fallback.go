@@ -406,7 +406,7 @@ func (h *ChatHandler) tryForwardWithConnection(f forwardRequestParams) error {
 
 	// Lightweight request trace for /debug/traces (provider/model latency).
 	completed := fwdErr == nil
-	if !completed && isClientCanceled(ctx, fwdErr) && metrics != nil && metrics.ResponseBuf.Len() > 0 {
+	if !completed && isClientCanceled(ctx, fwdErr) && metrics.ResponseBuf.Len() > 0 {
 		completed = true
 	}
 

@@ -104,6 +104,9 @@ func (r *Repo) GetUsageDailyAfter(cutoffKey string) ([]UsageDailyRow, error) {
 
 	var res []UsageDailyRow
 	for rows.Next() {
+		if rows.Err() != nil {
+			break
+		}
 		var row UsageDailyRow
 		if err := rows.Scan(&row.DateKey, &row.Data); err != nil {
 			continue
@@ -121,6 +124,9 @@ func (r *Repo) GetUsageDailyRecent(limit int) ([]string, error) {
 
 	var res []string
 	for rows.Next() {
+		if rows.Err() != nil {
+			break
+		}
 		var data string
 		if err := rows.Scan(&data); err != nil {
 			continue
@@ -147,6 +153,9 @@ func (r *Repo) GetUsageHistorySince(cutoff string) ([]UsageHistoryRow, error) {
 
 	var res []UsageHistoryRow
 	for rows.Next() {
+		if rows.Err() != nil {
+			break
+		}
 		var row UsageHistoryRow
 		if err := rows.Scan(
 			&row.Timestamp, &row.Provider, &row.Model, &row.ConnectionID,
@@ -177,6 +186,9 @@ func (r *Repo) GetRecentUsageHistory(limit int) ([]UsageHistoryRow, error) {
 
 	var res []UsageHistoryRow
 	for rows.Next() {
+		if rows.Err() != nil {
+			break
+		}
 		var row UsageHistoryRow
 		if err := rows.Scan(
 			&row.Timestamp, &row.Provider, &row.Model, &row.ConnectionID,
@@ -209,6 +221,9 @@ func (r *Repo) GetRequestDetailsPaged(limit, offset int) ([]string, int, error) 
 
 	var res []string
 	for rows.Next() {
+		if rows.Err() != nil {
+			break
+		}
 		var d string
 		if err := rows.Scan(&d); err != nil {
 			continue

@@ -302,8 +302,8 @@ func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
 				if fn == nil {
 					continue
 				}
-				schema, ok := fn["parameters"].(any)
-				if !ok {
+				schema := fn["parameters"]
+				if schema == nil {
 					schema = map[string]any{"type": "object"}
 				}
 				tools = append(tools, map[string]any{
@@ -312,9 +312,9 @@ func buildCommandcodeBody(body []byte, model string) ([]byte, error) {
 					"input_schema": schema,
 				})
 			} else if _, hasName := t["name"]; hasName {
-				schema, ok := t["input_schema"].(any)
-				if !ok {
-					schema, _ = t["parameters"].(any)
+				schema := t["input_schema"]
+				if schema == nil {
+					schema, _ = t["parameters"].(map[string]any)
 				}
 				tools = append(tools, map[string]any{
 					"name":         t["name"],

@@ -260,8 +260,8 @@ func (d *ClaudeStreamDecloaker) Events(chunk []byte) []SSEEvent {
 	if syntheticText != "" {
 		events = append(events, SSEEvent{
 			Type: "content_block_delta",
-			Payload: []byte(fmt.Sprintf(`{"type":"content_block_delta","index":%d,"delta":{"type":"text_delta","text":%s}}`,
-				int(event["index"].(float64)), mustJSONString(syntheticText))),
+			Payload: fmt.Appendf(nil, `{"type":"content_block_delta","index":%d,"delta":{"type":"text_delta","text":%s}}`,
+				int(event["index"].(float64)), mustJSONString(syntheticText)),
 		})
 	}
 	return events

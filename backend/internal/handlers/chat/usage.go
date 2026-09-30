@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
@@ -49,7 +50,7 @@ func (h *ChatHandler) LogFailure(
 	if errors.As(err, &upstreamErr) && upstreamErr.StatusCode > 0 {
 		statusCode = upstreamErr.StatusCode
 	}
-	if isClientCanceled(nil, err) {
+	if isClientCanceled(context.Background(), err) {
 		statusCode = StatusClientClosedRequest
 	}
 	message := extractErrorText([]byte(err.Error()))

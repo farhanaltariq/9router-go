@@ -248,10 +248,7 @@ func (h *DashboardHandler) validateProviderNodeConnection(
 
 	// 2. Anthropic Compatible
 	if strings.HasPrefix(node.ID, "anthropic-compatible-") || nodeType == "anthropic-compatible" {
-		base := strings.TrimSuffix(baseURL, "/")
-		if strings.HasSuffix(base, "/messages") {
-			base = base[:len(base)-len("/messages")]
-		}
+		base := strings.TrimSuffix(strings.TrimSuffix(baseURL, "/"), "/messages")
 		model := "claude-3-haiku-20240307"
 		if psd != nil {
 			if m, ok := psd["assignedModel"].(string); ok && strings.TrimSpace(m) != "" {
