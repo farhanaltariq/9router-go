@@ -64,6 +64,12 @@
   }
 
   interface RouteMeta {
+    title: string
+    description: string
+    icon: string
+  }
+
+  const routeMetaMap: Record<string, RouteMeta> = {
     dashboard: {
       title: 'Endpoint',
       description: 'API endpoint configuration',
@@ -257,11 +263,11 @@
             type="button"
             onclick={() => {
               isAppDrawerOpen = false
-              isShutdownConfirmOpen = true
+              handleLogout()
             }}
             class="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
           >
-            <span class="material-symbols-outlined text-[20px] text-red-500">power_settings_new</span>
+            <span class="material-symbols-outlined text-[20px] text-red-500">logout</span>
             <span class="flex-1 text-left">Logout</span>
           </button>
         </div>

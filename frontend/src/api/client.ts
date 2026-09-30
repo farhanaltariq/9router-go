@@ -563,11 +563,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({}),
     }),
-  shutdownServer: () =>
-    request<{ success?: boolean; status?: string; message?: string }>('/api/version/shutdown', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    }),
   getChangelog: async (): Promise<string> => {
     try {
       const res = await fetch('/api/changelog', { headers: getAuthHeaders() })
