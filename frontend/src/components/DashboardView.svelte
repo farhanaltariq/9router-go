@@ -13,7 +13,7 @@
   import UsageChart from './UsageChart.svelte'
   import Card from '../lib/ui/Card.svelte'
   import Toggle from '../lib/ui/Toggle.svelte'
-  import { fmt, fmtCost, timeAgo, type Period, type RecentRequestItem, type RequestDetailItem, type StatsData } from './analytics/types'
+  import { fmtCost, timeAgo, type Period, type RecentRequestItem, type RequestDetailItem, type StatsData } from './analytics/types'
   import { PROVIDER_CATALOG } from '../lib/providers'
 
   interface Props {
@@ -39,7 +39,6 @@
 
   // Overview stats & recent requests
   let stats = $state<StatsData>({})
-  let statsLoading = $state(true)
   let recentRequests = $state<RecentRequestItem[]>([])
 
   // Request details tab state
@@ -61,15 +60,6 @@
   let createdKeySecret = $state<string | null>(null)
   let deleteKeyConfirm = $state<APIKey | null>(null)
   let pauseKeyConfirm = $state<APIKey | null>(null)
-
-  // Time ticker for relative timestamps
-  let currentTimestamp = $state(Date.now())
-  $effect(() => {
-    const timer = setInterval(() => {
-      currentTimestamp = Date.now()
-    }, 1000)
-    return () => clearInterval(timer)
-  })
 
   // URL query param synchronization
   onMount(() => {
@@ -98,7 +88,6 @@
 
   // Load overview stats
   async function loadOverviewStats(targetPeriod: Period) {
-    statsLoading = true
     try {
       const res = await api.getUsageStats(targetPeriod)
       if (res) {
@@ -109,8 +98,6 @@
       }
     } catch (e) {
       console.error('Failed to load usage stats:', e)
-    } finally {
-      statsLoading = false
     }
   }
 
@@ -195,7 +182,7 @@
     if (!newKeyName.trim() || isCreatingKey) return
     isCreatingKey = true
     try {
-      const res = await api.createApiKey(newKeyName.trim())
+      const res = await api.createApiKey({ name: newKeyName.trim() })
       if (res && res.key) {
         createdKeySecret = res.key
         newKeyName = ''
@@ -223,8 +210,8 @@
 
   async function handleToggleKey(key: APIKey, nextState: boolean) {
     try {
-      await api.updateApiKey(key.id, { isActive: nextState })
-      keys = keys.map((k) => (k.id === key.id ? { ...k, isActive: nextState } : k))
+      await api.toggleApiKey(key.id)
+      keys = keys.map((k) => (k.id === key.id ? { ...k, isActive: nextState ? 1 : 0 } : k))
       pauseKeyConfirm = null
       onRefresh?.()
     } catch (err) {
@@ -274,10 +261,10 @@
   }
 
   function getStatusEmoji(conn: ProviderConnection): string {
-    if (conn.isActive === false) return '⏸️'
+    if (conn.isActive === 0) return '⏸️'
     if (conn.testStatus === 'error' || conn.errorCode) return '❌'
     if (conn.testStatus === 'ok') return '✅'
-    if (conn.expiresAt && new Date(conn.expiresAt).getTime() < Date.now()) return '⚠️'
+    if (conn.expiresAt && new Date(conn.expiresAt as string).getTime() < Date.now()) return '⚠️'
     return '✅'
   }
 
@@ -515,15 +502,14 @@
             <div class="flex flex-col -mx-1 divide-y divide-border/30">
               {#each keys as key (key.id)}
                 <div
-                  class="group flex items-center justify-between gap-3 px-1 py-2.5 rounded-lg hover:bg-surface-2 transition-colors {key.isActive ===
-                  false
+                  class="group flex items-center justify-between gap-3 px-1 py-2.5 rounded-lg hover:bg-surface-2 transition-colors {key.isActive === 0
                     ? 'opacity-50'
                     : ''}"
                 >
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
                       <span class="text-sm font-medium text-text-main truncate">{key.name}</span>
-                      {#if key.isActive === false}
+                      {#if key.isActive === 0}
                         <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-500">
                           Paused
                         </span>
@@ -559,9 +545,9 @@
                   <div class="flex items-center gap-2 shrink-0">
                     <Toggle
                       size="sm"
-                      checked={key.isActive ?? true}
+                      checked={key.isActive === 1}
                       onChange={(next) => {
-                        if (key.isActive && !next) {
+                        if (key.isActive === 1 && !next) {
                           pauseKeyConfirm = key
                         } else {
                           handleToggleKey(key, next)

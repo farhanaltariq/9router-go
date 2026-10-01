@@ -46,7 +46,7 @@
     }).length
   )
   let total = $derived(providerConns.length)
-  let allDisabled = $derived(total > 0 && providerConns.every((c) => c.isActive === 0 || c.isActive === false))
+  let allDisabled = $derived(total > 0 && providerConns.every((c) => c.isActive === 0))
 
   let icon = $derived(getIconPath(provider.id))
   let bgColor = $derived(
@@ -89,7 +89,7 @@
             alt={provider.name}
             width="30"
             height="30"
-            class="object-contain rounded-lg max-w-[30px] max-h-[30px]"
+            class="object-contain rounded-lg max-w-7.5 max-h-7.5"
             onerror={(e) => {
               const target = e.currentTarget as HTMLElement
               target.style.display = 'none'

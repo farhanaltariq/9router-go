@@ -16,6 +16,7 @@ export interface ProviderConnection {
   displayName?: string | null
   assignedModel?: string | null
   providerSpecificData?: { assignedModel?: string | null; [key: string]: unknown }
+  [key: string]: unknown
 }
 
 export interface Combo {
@@ -196,6 +197,7 @@ export interface ConnectionUsageResponse {
   plan?: string
   quotas?: Record<string, ConnectionQuotaInfo> | ConnectionQuotaInfo[]
   error?: string
+  message?: string
 }
 
 export interface RequireLoginResponse {

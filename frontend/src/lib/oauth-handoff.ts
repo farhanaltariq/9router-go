@@ -139,10 +139,14 @@ export function parseCallbackURL(href: string): { state: string; raw: string; er
   // query so per-provider submit parsers see everything.
   let extra = 0
   const known = new Set(['code', 'access_token', 'token', 'refreshToken', 'refresh_token', 'state'])
-  for (const [k, v] of [...q.entries(), ...h.entries()]) {
+  q.forEach((v, k) => {
     if (!known.has(k) && v !== '') extra++
     else if (known.has(k) && k !== 'state' && v !== '' && v !== code) extra++
-  }
+  })
+  h.forEach((v, k) => {
+    if (!known.has(k) && v !== '') extra++
+    else if (known.has(k) && k !== 'state' && v !== '' && v !== code) extra++
+  })
   if (code && extra === 0) {
     out.raw = code
   } else if (u.search.length > 1 || u.hash.length > 1) {

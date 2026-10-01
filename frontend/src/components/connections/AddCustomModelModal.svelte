@@ -121,8 +121,8 @@
     </div>
 
     <div>
-      <label class="text-sm font-medium mb-1.5 block">Capabilities</label>
-      <div class="flex flex-wrap gap-4">
+      <label class="text-sm font-medium mb-1.5 block" for="caps-toggle">Capabilities</label>
+      <div id="caps-toggle" class="flex flex-wrap gap-4">
         {#each Object.entries(CAPACITY_META) as [key, meta]}
           <div class="flex items-center gap-2">
             <Toggle

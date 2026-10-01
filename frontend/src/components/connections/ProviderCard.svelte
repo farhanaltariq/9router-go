@@ -1,5 +1,6 @@
 <script lang="ts">
   import { PauseCircle } from 'lucide-svelte'
+  // ProviderCard
   import Badge from '../../lib/ui/Badge.svelte'
   import Card from '../../lib/ui/Card.svelte'
   import Toggle from '../../lib/ui/Toggle.svelte'
@@ -43,6 +44,7 @@
 >
   <Card
     padding="xs"
+    // ProviderCard
     class="h-full hover:bg-black/2 dark:hover:bg-white/2 transition-colors p-3 rounded-xl border {isAllDisabled
       ? 'border-border bg-surface opacity-50'
       : stats.errorCount > 0

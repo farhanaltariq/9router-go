@@ -14,6 +14,7 @@
 
   interface Props {
     apiKeys?: APIKey[]
+    onRefresh?: () => void
   }
 
   let {

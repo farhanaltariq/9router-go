@@ -58,7 +58,6 @@
   let quotaErrors = $state<Record<string, string>>({})
   let autoRefresh = $state(true)
   let hasHydratedAutoRefresh = $state(false)
-  let lastUpdated = $state<Date | null>(null)
   let refreshingAll = $state(false)
   let countdown = $state(60)
   let connectionsLoading = $state(true)
@@ -169,7 +168,7 @@
       [provider]: nextMap,
     }
     try {
-      await api.updateSettingsRaw({
+      await api.updateSettings({
         [key]: nextMap,
       })
     } catch (err) {
@@ -247,7 +246,7 @@
   }
 
   function isActiveConn(conn: ProviderConnection): boolean {
-    return conn.isActive === 1 || conn.isActive === true
+    return conn.isActive === 1
   }
 
   function getConnectionLabel(conn: ProviderConnectionLike): string | null {
@@ -319,7 +318,6 @@
 
   async function refreshProvider(connectionId: string, provider: string): Promise<void> {
     await fetchQuota(connectionId, provider, { force: true })
-    lastUpdated = new Date()
   }
 
   async function refreshAll(force = false): Promise<void> {
@@ -336,15 +334,13 @@
     try {
       const visibleConnections = await fetchConnections(page)
 
-      quotaLoading = { ...buildLoadingState(visibleConnections) }
-      quotaErrors = filterQuotaStateByConnections(quotaErrors, visibleConnections)
-      quotaData = filterQuotaStateByConnections(quotaData, visibleConnections)
+      quotaLoading = { ...buildLoadingState(visibleConnections as ProviderConnectionLike[]) }
+      quotaErrors = filterQuotaStateByConnections(quotaErrors, visibleConnections as ProviderConnectionLike[])
+      quotaData = filterQuotaStateByConnections(quotaData, visibleConnections as ProviderConnectionLike[])
 
       await Promise.allSettled(
         visibleConnections.filter(shouldFetch).map((conn) => fetchQuota(conn.id, conn.provider)),
       )
-
-      lastUpdated = new Date()
     } catch (error) {
       console.error('Error refreshing all providers:', error)
     } finally {
@@ -484,12 +480,12 @@
   // ─── Derived ───────────────────────────────────────────────────────────────
   let sortedConnections = $derived.by<ProviderConnection[]>(() =>
     sortVisibleConnections(
-      connections as ProviderConnectionLike[],
+      connections,
       quotaData,
       expiringFirst,
       providerFilter,
       quotaSortMode,
-    ) as ProviderConnection[],
+    ),
   )
 
   let hasEligibleConnections = $derived(totals.eligibleConnections > 0)
@@ -581,13 +577,12 @@
       const visibleConnections = await fetchConnections(page)
       connectionsLoading = false
       initialLoadDone = true
-      quotaLoading = { ...buildLoadingState(visibleConnections) }
-      quotaErrors = filterQuotaStateByConnections(quotaErrors, visibleConnections)
-      quotaData = filterQuotaStateByConnections(quotaData, visibleConnections)
+      quotaLoading = { ...buildLoadingState(visibleConnections as ProviderConnectionLike[]) }
+      quotaErrors = filterQuotaStateByConnections(quotaErrors, visibleConnections as ProviderConnectionLike[])
+      quotaData = filterQuotaStateByConnections(quotaData, visibleConnections as ProviderConnectionLike[])
       await Promise.allSettled(
         visibleConnections.map((conn) => fetchQuota(conn.id, conn.provider)),
       )
-      lastUpdated = new Date()
     })()
 
     // Pause auto-refresh when tab hidden (Page Visibility API)
@@ -666,7 +661,7 @@
               <img
                 src={getIconPath(providerFilter)}
                 alt={providerFilter}
-                class="size-[18px] rounded object-contain"
+                class="size-4.5 rounded object-contain"
                 onerror={(e) => {
                   ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                 }}

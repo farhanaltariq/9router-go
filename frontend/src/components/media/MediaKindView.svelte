@@ -1,5 +1,7 @@
 <script lang="ts">
+  // MediaKindView
   import { onMount } from 'svelte'
+  // MediaConnectionCard
   import { api, type APIKey, type Combo, type ProviderConnection, type ProviderNode, type Settings } from '../../api/client'
   import { getProvidersByKind, type ProviderCatalogItem } from '../../lib/providers'
   import Badge from '../../lib/ui/Badge.svelte'
@@ -152,6 +154,7 @@
           {#each kindCombos as combo (combo.id)}
             <a href={`/dashboard/media-providers/combo/${combo.id}`}>
               <Card padding="xs" class="h-full hover:bg-black/1 dark:hover:bg-white/1 transition-colors cursor-pointer">
+                // MediaKindView
                 <div class="flex items-center gap-3">
                   <div class="size-8 rounded-lg flex items-center justify-center shrink-0 bg-primary/10 text-primary">
                     <span class="material-symbols-outlined text-lg">alt_route</span>

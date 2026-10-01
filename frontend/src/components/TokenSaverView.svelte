@@ -4,7 +4,6 @@
   import Toggle from '../lib/ui/Toggle.svelte'
   import Modal from '../lib/ui/Modal.svelte'
   import Button from '../lib/ui/Button.svelte'
-  import Input from '../lib/ui/Input.svelte'
   import { api, type Settings } from '../api/client'
 
   interface Props {
@@ -432,7 +431,7 @@
 </script>
 
 <div class="space-y-6 p-6">
-  <Card id="rtk">
+  <Card>
     <div class="flex items-center justify-between mb-2">
       <h2 class="text-lg font-semibold flex items-center gap-2">
         <span class="material-symbols-outlined text-primary">bolt</span>

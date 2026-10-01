@@ -4,6 +4,7 @@
   import { getProvidersByKind, type ProviderCatalogItem } from '../../lib/providers'
   import Badge from '../../lib/ui/Badge.svelte'
   import Button from '../../lib/ui/Button.svelte'
+  // MediaWebView
   interface Props {
     connections?: ProviderConnection[]
     combos?: Combo[]
@@ -126,12 +127,10 @@
       <div class="flex flex-col gap-2">
         {#each sectionCombos as combo (combo.id)}
           {@const models = parseModels(combo)}
-          <div
-            role="button"
-            tabindex="0"
+          <button
+            type="button"
             onclick={() => openManageDialog(combo)}
-            onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openManageDialog(combo)}
-            class="group cursor-pointer text-left focus:outline-none"
+            class="group cursor-pointer text-left focus:outline-none w-full"
           >
             <div class="p-2.5 rounded-xl border border-border bg-surface hover:border-brand-500/40 hover:bg-black/1 dark:hover:bg-white/1 transition-all flex min-w-0 items-center gap-3">
               <div class="size-6 rounded-md bg-brand-500/10 flex items-center justify-center shrink-0">
@@ -154,7 +153,7 @@
               <span class="text-[11px] text-text-muted shrink-0 font-medium">{models.length} {models.length === 1 ? 'model' : 'models'}</span>
               <ChevronRight class="w-4 h-4 text-text-muted group-hover:text-text-main transition-colors shrink-0" />
             </div>
-          </div>
+          </button>
         {/each}
       </div>
     {:else}

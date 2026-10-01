@@ -232,6 +232,7 @@
     'media-stt': { title: 'Speech to Text', description: 'Audio transcription and speech recognition models' },
     'media-systemone': { title: 'System One', description: 'Structured state evaluation models' },
     'media-web': { title: 'Web Fetch & Search', description: 'Configure web search and scrape tools' },
+    'media-video': { title: 'Video Models', description: 'Video generation and understanding models' },
     'proxy-pools': { title: 'Proxy Pools', description: 'Manage your proxy pool configurations' },
     skills: { title: 'Agent Skills', description: 'Copy a link and paste to your AI to use 9router-go — no install needed' },
     'console-log': { title: 'Console Log', description: 'Live server console output' },

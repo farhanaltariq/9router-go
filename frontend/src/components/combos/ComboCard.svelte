@@ -66,10 +66,10 @@
               <code class="inline-flex items-center gap-1 rounded bg-black/5 dark:bg-white/5 px-1.5 py-0.5 font-mono text-xs text-text-muted">
                 <span>{model}</span>
                 {#if hasVision(model)}
-                  <Eye class="w-3 h-3 text-blue-500 shrink-0" title="Vision — Supports image input" />
+                  <Eye class="w-3 h-3 text-blue-500 shrink-0" aria-label="Vision — Supports image input" />
                 {/if}
                 {#if hasReasoning(model)}
-                  <Sparkles class="w-3 h-3 text-amber-500 shrink-0" title="Reasoning — Supports reasoning / thinking" />
+                  <Sparkles class="w-3 h-3 text-amber-500 shrink-0" aria-label="Reasoning — Supports reasoning / thinking" />
                 {/if}
               </code>
             {/each}
@@ -110,7 +110,7 @@
     <!-- Actions: Strategy selector + Copy/Edit/Delete -->
     <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
       <!-- Strategy dropdown -->
-      <div class="w-full sm:w-[200px]">
+      <div class="w-full sm:w-50">
         <select
           value={currentStrategy}
           onchange={(e) => onSetStrategy(combo, e.currentTarget.value)}

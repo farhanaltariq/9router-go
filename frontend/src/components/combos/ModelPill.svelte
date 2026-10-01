@@ -29,13 +29,13 @@
   {#if caps?.vision}
     <Eye
       class={isAdded ? 'w-3 h-3 text-white/90 shrink-0' : 'w-3 h-3 text-blue-500 shrink-0'}
-      title="Vision — Supports image input"
+      aria-label="Vision — Supports image input"
     />
   {/if}
   {#if caps?.reasoning}
     <Brain
       class={isAdded ? 'w-3 h-3 text-white/90 shrink-0' : 'w-3 h-3 text-amber-500 shrink-0'}
-      title="Reasoning / Thinking"
+      aria-label="Reasoning / Thinking"
     />
   {/if}
 </button>

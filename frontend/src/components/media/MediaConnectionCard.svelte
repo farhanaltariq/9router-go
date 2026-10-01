@@ -1,5 +1,7 @@
 <script lang="ts">
+  // MediaConnectionCard
   import { Clock } from 'lucide-svelte'
+  // MediaConnectionCard
   import type { ProviderConnection } from '../../api/client'
   import Card from '../../lib/ui/Card.svelte'
   import Toggle from '../../lib/ui/Toggle.svelte'

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '../../api/client'
+  // AddCompatibleNodeModal
   import Badge from '../../lib/ui/Badge.svelte'
   import Button from '../../lib/ui/Button.svelte'
   import Input from '../../lib/ui/Input.svelte'
